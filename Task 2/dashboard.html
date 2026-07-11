@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股票技术指标分析看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #f5f7fa; color: #333; }
+.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #fff; padding: 20px 40px; }
+.header h1 { font-size: 24px; margin-bottom: 4px; }
+.header p { font-size: 13px; opacity: 0.8; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* 控制面板 */
+.controls { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.control-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
+.control-row:last-child { margin-bottom: 0; }
+.control-group { display: flex; flex-direction: column; gap: 6px; }
+.control-group label { font-size: 12px; color: #666; font-weight: 600; white-space: nowrap; }
+.control-group input, .control-group select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100px; transition: border-color .2s; }
+.control-group input:focus { border-color: #0f3460; outline: none; }
+.control-group.input-lg input { width: 200px; }
+.control-group.file-input input[type="file"] { width: 220px; padding: 6px; font-size: 12px; }
+.btn { padding: 8px 24px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all .2s; }
+.btn-primary { background: #0f3460; color: #fff; }
+.btn-primary:hover { background: #1a5276; }
+.btn-success { background: #27ae60; color: #fff; }
+.btn-success:hover { background: #219a52; }
+.btn-warning { background: #e67e22; color: #fff; }
+.btn-warning:hover { background: #d35400; }
+.btn-small { padding: 6px 14px; font-size: 12px; }
+
+/* 搜索建议框 */
+.suggest-box { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ddd; border-radius: 6px; max-height: 220px; overflow-y: auto; z-index: 100; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.suggest-box.active { display: block; }
+.suggest-item { padding: 10px 14px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; }
+.suggest-item:hover { background: #f0f4ff; }
+.suggest-item .scode { color: #0f3460; font-weight: 600; }
+.suggest-item .sname { color: #333; }
+
+/* 后端状态 */
+.backend-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #999; margin-left: 8px; }
+.backend-status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.backend-status .dot.online { background: #27ae60; }
+.backend-status .dot.offline { background: #e74c3c; }
+
+/* 折叠面板 */
+.collapse-header { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #999; user-select: none; }
+.collapse-body { display: none; margin-top: 12px; }
+.collapse-body.open { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+
+/* 统计信息卡片 */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.stat-card .label { font-size: 11px; color: #999; }
+.stat-card .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.stat-card .value.red { color: #d62728; }
+.stat-card .value.green { color: #2ca02c; }
+
+/* 图表卡片 */
+.chart-card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.chart-card h3 { font-size: 16px; margin-bottom: 16px; color: #1a1a2e; }
+.chart-card .chart-container { position: relative; width: 100%; min-height: 350px; }
+
+/* 表格 */
+.table-wrap { overflow-x: auto; margin-top: 16px; }
+.table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-wrap th { background: #f0f2f5; padding: 10px 12px; text-align: center; font-weight: 600; border-bottom: 2px solid #ddd; }
+.table-wrap td { padding: 8px 12px; text-align: center; border-bottom: 1px solid #eee; }
+.table-wrap tr:hover { background: #f8f9fb; }
+
+/* 加载提示 */
+.loading { display: none; text-align: center; padding: 40px; color: #999; }
+.loading.active { display: block; }
+.spinner { display: inline-block; width: 32px; height: 32px; border: 3px solid #eee; border-top-color: #0f3460; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 报错 */
+.error-msg { background: #ffeaea; color: #c0392b; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 13px; }
+.error-msg.active { display: block; }
+
+/* 标签页按钮 */
+.tab-bar { display: flex; gap: 0; margin-bottom: 0; }
+.tab-btn { padding: 10px 20px; border: none; background: #e8ecf1; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s; border-radius: 8px 8px 0 0; }
+.tab-btn.active { background: #fff; color: #0f3460; }
+.tab-btn:hover { background: #dde2e9; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.divider { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+
+@media (max-width: 768px) {
+  .controls { flex-direction: column; align-items: stretch; }
+  .control-group input { width: 100%; }
+  .control-group.file-input input[type="file"] { width: 100%; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 股票技术指标分析看板</h1>
+  <p>支持 RSI · MACD · 布林带 参数自定义 | A 股红涨绿跌配色</p>
+</div>
+
+<div class="container">
+
+  <!-- 控制面板 -->
+  <div class="controls">
+    <!-- 第一行：股票搜索 -->
+    <div class="control-row">
+      <div class="control-group input-lg" style="position:relative;">
+        <label>🔍 输入股票代码或名称</label>
+        <input type="text" id="stockSearch" placeholder="例如：688256 / 寒武纪 / 000001" style="width:260px;" onkeyup="onSearchInput(event)">
+        <div class="suggest-box" id="suggestBox"></div>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="fetchStockData()">📥 加载数据</button>
+      </div>
+      <div>
+        <button class="btn btn-small btn-success" onclick="loadDemoData()">📋 示例：寒武纪</button>
+      </div>
+      <span class="backend-status" id="backendStatus">
+        <span class="dot offline" id="statusDot"></span>
+        <span id="statusText">后端检测中...</span>
+      </span>
+    </div>
+
+    <!-- 第二行：参数设置 -->
+    <div class="control-row">
+      <div class="control-group">
+        <label>📌 RSI 周期</label>
+        <input type="number" id="rsiPeriod" value="14" min="2" max="50">
+      </div>
+      <div class="control-group">
+        <label>📌 MACD 快/慢/信号</label>
+        <div style="display:flex;gap:4px;">
+          <input type="number" id="macdFast" value="12" min="2" max="60" style="width:60px;" title="快线">
+          <input type="number" id="macdSlow" value="26" min="5" max="100" style="width:60px;" title="慢线">
+          <input type="number" id="macdSignal" value="9" min="2" max="30" style="width:60px;" title="信号线">
+        </div>
+      </div>
+      <div class="control-group">
+        <label>📌 布林带周期/标准差</label>
+        <div style="display:flex;gap:4px;">
+          <input type="number" id="bbPeriod" value="20" min="2" max="100" style="width:60px;" title="周期">
+          <input type="number" id="bbK" value="2" min="0.5" max="5" step="0.1" style="width:60px;" title="标准差倍数">
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="runAnalysis()">🔄 计算指标</button>
+      </div>
+      <div class="collapse-header" onclick="toggleAdvanced()">
+        <span id="collapseIcon">▶</span> 更多选项
+      </div>
+    </div>
+
+    <!-- 折叠：文件上传 -->
+    <div class="collapse-body" id="advancedOptions">
+      <div class="control-group file-input">
+        <label>📁 或上传 CSV 文件</label>
+        <input type="file" id="csvFile" accept=".csv">
+      </div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- 状态卡片 -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- 标签页导航 -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('bollinger')">📈 布林带</button>
+    <button class="tab-btn" onclick="switchTab('rsi')">📊 RSI</button>
+    <button class="tab-btn" onclick="switchTab('macd')">📉 MACD</button>
+    <button class="tab-btn" onclick="switchTab('data')">📋 数据表</button>
+  </div>
+
+  <!-- 布林带图 -->
+  <div class="chart-card tab-content active" id="tabBollinger">
+    <h3>股价走势与布林带 (Bollinger Bands)</h3>
+    <div class="chart-container"><canvas id="chartBB"></canvas></div>
+  </div>
+
+  <!-- RSI 图 -->
+  <div class="chart-card tab-content" id="tabRsi">
+    <h3>相对强弱指标 (RSI)</h3>
+    <div class="chart-container"><canvas id="chartRSI"></canvas></div>
+  </div>
+
+  <!-- MACD 图 -->
+  <div class="chart-card tab-content" id="tabMacd">
+    <h3>指数平滑异同移动平均线 (MACD)</h3>
+    <div class="chart-container"><canvas id="chartMACD"></canvas></div>
+  </div>
+
+  <!-- 数据表 -->
+  <div class="chart-card tab-content" id="tabData">
+    <h3>指标计算结果明细</h3>
+    <div class="table-wrap" id="dataTableWrap"></div>
+  </div>
+
+</div>
+
+<script>
+// ============ 后端 API 配置 ============
+const API_BASE = 'http://127.0.0.1:8080/api';
+let searchTimer = null;
+
+// ============ 连接状态检测 ============
+async function checkBackend() {
+  try {
+    const resp = await fetch(API_BASE + '/health');
+    if (resp.ok) {
+      document.getElementById('statusDot').className = 'dot online';
+      document.getElementById('statusText').textContent = '后端已连接';
+      return true;
+    }
+  } catch(e) {}
+  document.getElementById('statusDot').className = 'dot offline';
+  document.getElementById('statusText').textContent = '后端未连接（需运行 backend.py）';
+  return false;
+}
+setTimeout(checkBackend, 500);
+
+// ============ 股票搜索 ============
+function onSearchInput(event) {
+  clearTimeout(searchTimer);
+  const val = event.target.value.trim();
+  if (val.length < 1) {
+    document.getElementById('suggestBox').classList.remove('active');
+    return;
+  }
+  // 纯数字6位 → 直接查询，不搜索
+  if (/^\d{6}$/.test(val)) return;
+  searchTimer = setTimeout(() => doSearch(val), 300);
+}
+
+async function doSearch(keyword) {
+  const box = document.getElementById('suggestBox');
+  try {
+    const resp = await fetch(API_BASE + '/search?keyword=' + encodeURIComponent(keyword));
+    if (!resp.ok) return;
+    const result = await resp.json();
+    const data = result.data || [];
+    if (data.length === 0) {
+      box.classList.remove('active');
+      return;
+    }
+    box.innerHTML = data.map(item =>
+      `<div class="suggest-item" onclick="selectStock('${item.code}','${item.name}')">
+        <span><span class="scode">${item.code}</span> <span class="sname">${item.name}</span></span>
+        <span style="color:#999;font-size:11px;">${item.market}</span>
+      </div>`
+    ).join('');
+    box.classList.add('active');
+  } catch(e) {
+    box.classList.remove('active');
+  }
+}
+
+function selectStock(code, name) {
+  document.getElementById('stockSearch').value = code + ' ' + name;
+  document.getElementById('suggestBox').classList.remove('active');
+  fetchStockData();
+}
+
+// ============ 通过后端获取股票数据 ============
+async function fetchStockData() {
+  const raw = document.getElementById('stockSearch').value.trim();
+  // 提取纯数字代码
+  const codeMatch = raw.match(/(\d{6})/);
+  if (!codeMatch) {
+    showError('请输入有效的股票代码（如 688256）或股票名称');
+    return;
+  }
+  const code = codeMatch[1];
+  hideError();
+  document.getElementById('statusText').textContent = '正在加载数据...';
+
+  try {
+    // 最近一年
+    const now = new Date();
+    const endDate = now.toISOString().slice(0,10).replace(/-/g,'');
+    const startDate = new Date(now.getTime() - 365*24*3600*1000).toISOString().slice(0,10).replace(/-/g,'');
+
+    const resp = await fetch(`${API_BASE}/kline?code=${code}&start=${startDate}&end=${endDate}`);
+    if (!resp.ok) {
+      const err = await resp.json();
+      showError(err.error || '获取数据失败');
+      document.getElementById('statusText').textContent = '加载失败';
+      return;
+    }
+    const result = await resp.json();
+    const rows = result.data;
+    if (!rows || rows.length === 0) {
+      showError('未获取到数据');
+      return;
+    }
+
+    // 转换为内部格式
+    rawData = rows.map(r => ({
+      date: r.trade_date,
+      dateStr: r.trade_date,  // 后端返回 YYYY-MM-DD 格式
+      open: r.open,
+      high: r.high,
+      low: r.low,
+      close: r.close,
+      preClose: r.pre_close || r.close,
+      vol: r.vol || 0
+    }));
+
+    rawData.sort((a,b) => a.date.localeCompare(b.date));
+
+    dateLabels = rawData.map(d => d.dateStr);
+    closePrices = rawData.map(d => d.close);
+    highPrices = rawData.map(d => d.high);
+    lowPrices = rawData.map(d => d.low);
+    volData = rawData.map(d => d.vol);
+    preClose = rawData.map(d => d.preClose);
+
+    document.getElementById('statusText').textContent = `已加载 ${result.count} 条日线数据`;
+    document.getElementById('statusDot').className = 'dot online';
+
+    // 自动计算
+    runAnalysis();
+
+  } catch(e) {
+    showError('后端请求失败：' + e.message + '。请确认已运行 backend.py');
+    document.getElementById('statusText').textContent = '连接失败';
+  }
+}
+
+// ============ 折叠面板 ============
+function toggleAdvanced() {
+  const body = document.getElementById('advancedOptions');
+  const icon = document.getElementById('collapseIcon');
+  body.classList.toggle('open');
+  icon.textContent = body.classList.contains('open') ? '▼' : '▶';
+}
+
+// ============ 核心状态 ============
+let rawData = [];
+let dateLabels = [];
+let closePrices = [];
+let highPrices = [];
+let lowPrices = [];
+let volData = [];
+let preClose = [];
+
+let chartBB = null, chartRSI = null, chartMACD = null;
+
+// ============ 加载示例数据 ============
+function loadDemoData() {
+  document.getElementById('stockSearch').value = '688256 寒武纪';
+  fetchStockData();
+}
+
+// ============ CSV 上传 ============
+document.getElementById('csvFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  Papa.parse(file, {
+    header: true,
+    dynamicTyping: true,
+    encoding: 'UTF-8',
+    complete: function(results) {
+      if (results.errors.length > 0) {
+        showError('CSV 解析错误：' + results.errors[0].message);
+        return;
+      }
+      processData(results.data);
+    },
+    error: function(err) {
+      showError('文件读取失败：' + err.message);
+    }
+  });
+});
+
+// ============ 数据处理 ============
+function processData(data) {
+  if (!data || data.length === 0) {
+    showError('数据为空');
+    return;
+  }
+  hideError();
+
+  // 自动列映射
+  const first = data[0];
+  const colMap = {};
+  for (const key of Object.keys(first)) {
+    const k = key.toLowerCase().trim();
+    if (k === 'trade_date' || k === 'date' || k === 'datetime') colMap.date = key;
+    else if (k === 'close') colMap.close = key;
+    else if (k === 'open') colMap.open = key;
+    else if (k === 'high') colMap.high = key;
+    else if (k === 'low') colMap.low = key;
+    else if (k === 'vol' || k === 'volume') colMap.vol = key;
+    else if (k === 'pre_close') colMap.preClose = key;
+  }
+
+  if (!colMap.date || !colMap.close) {
+    showError('CSV 缺少必要列：date（或trade_date）和 close 列。找到的列：' + Object.keys(first).join(', '));
+    return;
+  }
+
+  // 解析并排序
+  let parsed = data.map(d => ({
+    date: String(d[colMap.date]).trim(),
+    open: d[colMap.open] ? +d[colMap.open] : NaN,
+    high: d[colMap.high] ? +d[colMap.high] : NaN,
+    low: d[colMap.low] ? +d[colMap.low] : NaN,
+    close: +d[colMap.close],
+    preClose: d[colMap.preClose] ? +d[colMap.preClose] : NaN,
+    vol: d[colMap.vol] ? +d[colMap.vol] : NaN
+  })).filter(d => !isNaN(d.close) && d.date.length >= 8);
+
+  parsed.sort((a, b) => a.date.localeCompare(b.date));
+
+  // 修复日期格式
+  parsed.forEach(d => {
+    let ds = d.date.replace(/[-/]/g, '');
+    if (ds.length === 8) {
+      d.dateStr = ds.substring(0,4) + '-' + ds.substring(4,6) + '-' + ds.substring(6,8);
+    }
+  });
+
+  rawData = parsed;
+  dateLabels = parsed.map(d => d.dateStr);
+  closePrices = parsed.map(d => d.close);
+  highPrices = parsed.map(d => d.high);
+  lowPrices = parsed.map(d => d.low);
+  volData = parsed.map(d => d.vol);
+  preClose = parsed.map(d => d.preClose);
+
+  if (dateLabels.length < 30) {
+    showError('数据需要至少30个交易日，当前仅 ' + dateLabels.length + ' 个');
+    return;
+  }
+
+  runAnalysis();
+}
+
+// ============ 指标计算函数 ============
+function calcRSI(prices, period) {
+  const rsi = new Array(prices.length).fill(NaN);
+  const gains = [], losses = [];
+  for (let i = 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    gains.push(diff > 0 ? diff : 0);
+    losses.push(diff < 0 ? -diff : 0);
+  }
+  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  rsi[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < prices.length; i++) {
+    avgGain = (avgGain * (period - 1) + gains[i - 1]) / period;
+    avgLoss = (avgLoss * (period - 1) + losses[i - 1]) / period;
+    rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return rsi;
+}
+
+function calcEMA(prices, period) {
+  const alpha = 2 / (period + 1);
+  const ema = new Array(prices.length).fill(NaN);
+  let firstValid = prices.findIndex(v => !isNaN(v));
+  if (firstValid === -1) return ema;
+  const endIdx = firstValid + period;
+  if (endIdx > prices.length) return ema;
+  let sum = 0, cnt = 0;
+  for (let i = firstValid; i < endIdx; i++) {
+    if (!isNaN(prices[i])) { sum += prices[i]; cnt++; }
+  }
+  ema[endIdx - 1] = sum / cnt;
+  for (let i = endIdx; i < prices.length; i++) {
+    ema[i] = prices[i] * alpha + ema[i - 1] * (1 - alpha);
+  }
+  return ema;
+}
+
+function calcMACD(prices, fast, slow, signal) {
+  const emaFast = calcEMA(prices, fast);
+  const emaSlow = calcEMA(prices, slow);
+  const dif = emaFast.map((v, i) => isNaN(v) || isNaN(emaSlow[i]) ? NaN : v - emaSlow[i]);
+  const dea = calcEMA(dif, signal);
+  const hist = dif.map((v, i) => isNaN(v) || isNaN(dea[i]) ? NaN : (v - dea[i]) * 2);
+  return { dif, dea, hist };
+}
+
+function calcBB(prices, period, k) {
+  const upper = new Array(prices.length).fill(NaN);
+  const middle = new Array(prices.length).fill(NaN);
+  const lower = new Array(prices.length).fill(NaN);
+  for (let i = period - 1; i < prices.length; i++) {
+    const slice = prices.slice(i - period + 1, i + 1);
+    const mean = slice.reduce((a, b) => a + b, 0) / period;
+    const std = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / period);
+    middle[i] = mean;
+    upper[i] = mean + k * std;
+    lower[i] = mean - k * std;
+  }
+  return { upper, middle, lower };
+}
+
+// ============ 主分析函数 ============
+function runAnalysis() {
+  if (rawData.length === 0) {
+    showError('请先上传 CSV 数据或点击"加载示例"');
+    return;
+  }
+  hideError();
+
+  const rsiPeriod = parseInt(document.getElementById('rsiPeriod').value) || 14;
+  const macdFast = parseInt(document.getElementById('macdFast').value) || 12;
+  const macdSlow = parseInt(document.getElementById('macdSlow').value) || 26;
+  const macdSignal = parseInt(document.getElementById('macdSignal').value) || 9;
+  const bbPeriod = parseInt(document.getElementById('bbPeriod').value) || 20;
+  const bbK = parseFloat(document.getElementById('bbK').value) || 2;
+
+  // 计算指标
+  const rsi = calcRSI(closePrices, rsiPeriod);
+  const macd = calcMACD(closePrices, macdFast, macdSlow, macdSignal);
+  const bb = calcBB(closePrices, bbPeriod, bbK);
+
+  // 更新统计卡片
+  updateStats(closePrices, rsi, macd, bb);
+
+  // 更新图表
+  renderBBChart(dateLabels, closePrices, bb, bbPeriod, bbK);
+  renderRSIChart(dateLabels, rsi, rsiPeriod);
+  renderMACDChart(dateLabels, macd, macdFast, macdSlow, macdSignal);
+
+  // 更新数据表
+  renderDataTable(dateLabels, closePrices, rsi, macd, bb);
+}
+
+// ============ 统计卡片 ============
+function updateStats(prices, rsi, macd, bb) {
+  const last = prices.length - 1;
+  const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+
+  const cards = [
+    { label: '最新收盘价', value: prices[last].toFixed(2), cls: 'red' },
+    { label: '均值', value: mean.toFixed(2), cls: '' },
+    { label: '最高', value: max.toFixed(2), cls: 'red' },
+    { label: '最低', value: min.toFixed(2), cls: 'green' },
+    { label: `RSI(${document.getElementById('rsiPeriod').value})`, value: !isNaN(rsi[last]) ? rsi[last].toFixed(2) : '—', cls: rsi[last] >= 70 ? 'red' : rsi[last] <= 30 ? 'green' : '' },
+    { label: 'MACD柱', value: (!isNaN(macd.hist[last]) ? macd.hist[last].toFixed(2) : '—'), cls: macd.hist[last] >= 0 ? 'red' : 'green' },
+    { label: '布林上轨', value: (!isNaN(bb.upper[last]) ? bb.upper[last].toFixed(2) : '—'), cls: '' },
+    { label: '布林下轨', value: (!isNaN(bb.lower[last]) ? bb.lower[last].toFixed(2) : '—'), cls: '' },
+  ];
+
+  document.getElementById('statsGrid').innerHTML = cards.map(c =>
+    `<div class="stat-card"><div class="label">${c.label}</div><div class="value ${c.cls}">${c.value}</div></div>`
+  ).join('');
+}
+
+// ============ 渲染布林带图 ============
+function renderBBChart(labels, prices, bb, period, k) {
+  const ctx = document.getElementById('chartBB').getContext('2d');
+  if (chartBB) chartBB.destroy();
+
+  // 缩放标签显示
+  const step = Math.max(1, Math.floor(labels.length / 30));
+
+  chartBB = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '收盘价',
+          data: prices,
+          borderColor: '#d62728',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          order: 1,
+          yAxisID: 'y'
+        },
+        {
+          label: '上轨 (SMA+' + k + 'σ)',
+          data: bb.upper,
+          borderColor: '#333',
+          borderDash: [4, 3],
+          borderWidth: 1,
+          pointRadius: 0,
+          order: 2,
+          yAxisID: 'y'
+        },
+        {
+          label: '中轨 (SMA' + period + ')',
+          data: bb.middle,
+          borderColor: '#333',
+          borderWidth: 1.2,
+          pointRadius: 0,
+          order: 2,
+          yAxisID: 'y'
+        },
+        {
+          label: '下轨 (SMA-' + k + 'σ)',
+          data: bb.lower,
+          borderColor: '#333',
+          borderDash: [4, 3],
+          borderWidth: 1,
+          fill: false,
+          pointRadius: 0,
+          order: 2,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 800 },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { boxWidth: 18, padding: 12, font: { size: 11 } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 12,
+            maxRotation: 45
+          },
+          grid: { display: false }
+        },
+        y: {
+          position: 'left',
+          ticks: { font: { size: 11 } },
+          title: { display: true, text: '价格（元）' },
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      },
+      elements: {
+        point: { radius: 0 }
+      }
+    }
+  });
+}
+
+// ============ 渲染 RSI 图 ============
+let chartRSI = null;
+function renderRSIChart(labels, rsi, period) {
+  const ctx = document.getElementById('chartRSI').getContext('2d');
+  if (chartRSI) chartRSI.destroy();
+
+  const overbought = new Array(labels.length).fill(70);
+  const oversold = new Array(labels.length).fill(30);
+
+  chartRSI = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'RSI(' + period + ')',
+          data: rsi,
+          borderColor: '#1f77b4',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          pointRadius: 0,
+          order: 1
+        },
+        {
+          label: '超买线 (70)',
+          data: overbought,
+          borderColor: '#d62728',
+          borderDash: [4, 3],
+          borderWidth: 1,
+          pointRadius: 0,
+          order: 2
+        },
+        {
+          label: '超卖线 (30)',
+          data: oversold,
+          borderColor: '#2ca02c',
+          borderDash: [4, 3],
+          borderWidth: 1,
+          pointRadius: 0,
+          order: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 800 },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 18, font: { size: 11 } } },
+        annotation: {
+          annotations: {
+            line50: {
+              type: 'line',
+              yMin: 50, yMax: 50,
+              borderColor: 'rgba(128,128,128,0.4)',
+              borderWidth: 1,
+              borderDash: [3, 3],
+              label: { display: false }
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 12, maxRotation: 45 }, grid: { display: false } },
+        y: { min: 0, max: 100, ticks: { stepSize: 10 } }
+      },
+      elements: { point: { radius: 0 } }
+    }
+  });
+}
+
+// ============ 渲染 MACD 图 ============
+let chartMACD = null;
+function renderMACDChart(labels, macd, fast, slow, signal) {
+  const ctx = document.getElementById('chartMACD').getContext('2d');
+  if (chartMACD) chartMACD.destroy();
+
+  // 柱状图颜色
+  const histColors = macd.hist.map(v => v >= 0 ? '#d6272880' : '#2ca02c80');
+  const histBorder = macd.hist.map(v => v >= 0 ? '#d62728' : '#2ca02c');
+
+  chartMACD = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'MACD柱',
+          data: macd.hist,
+          backgroundColor: histColors,
+          borderColor: histBorder,
+          borderWidth: 0.5,
+          order: 3,
+          barPercentage: 0.6
+        },
+        {
+          label: 'DIF',
+          data: macd.dif,
+          type: 'line',
+          borderColor: '#1f77b4',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          order: 1
+        },
+        {
+          label: 'DEA',
+          data: macd.dea,
+          type: 'line',
+          borderColor: '#ff7f0e',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          order: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 800 },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 18, font: { size: 11 } } },
+        annotation: {
+          annotations: {
+            zero: {
+              type: 'line',
+              yMin: 0, yMax: 0,
+              borderColor: '#000',
+              borderWidth: 0.5,
+              label: { display: false }
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 12, maxRotation: 45 }, grid: { display: false } },
+        y: { grid: { color: 'rgba(0,0,0,0.06)' } }
+      },
+      elements: { point: { radius: 0 } }
+    }
+  });
+}
+
+// ============ 数据表 ============
+function renderDataTable(labels, prices, rsi, macd, bb) {
+  const idx = document.getElementById('dataTableWrap');
+  let html = '<table><thead><tr><th>日期</th><th>收盘价</th><th>RSI</th><th>DIF</th><th>DEA</th><th>MACD柱</th><th>布林上轨</th><th>布林中轨</th><th>布林下轨</th></tr></thead><tbody>';
+
+  // 显示最近 50 条
+  const start = Math.max(0, labels.length - 50);
+  for (let i = start; i < labels.length; i++) {
+    html += `<tr>
+      <td>${labels[i]}</td>
+      <td>${prices[i].toFixed(2)}</td>
+      <td>${isNaN(rsi[i]) ? '—' : rsi[i].toFixed(2)}</td>
+      <td>${isNaN(macd.dif[i]) ? '—' : macd.dif[i].toFixed(2)}</td>
+      <td>${isNaN(macd.dea[i]) ? '—' : macd.dea[i].toFixed(2)}</td>
+      <td style="color:${macd.hist[i] >= 0 ? '#d62728' : '#2ca02c'}">${isNaN(macd.hist[i]) ? '—' : macd.hist[i].toFixed(2)}</td>
+      <td>${isNaN(bb.upper[i]) ? '—' : bb.upper[i].toFixed(2)}</td>
+      <td>${isNaN(bb.middle[i]) ? '—' : bb.middle[i].toFixed(2)}</td>
+      <td>${isNaN(bb.lower[i]) ? '—' : bb.lower[i].toFixed(2)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  idx.innerHTML = html;
+}
+
+// ============ 工具函数 ============
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+function hideError() {
+  document.getElementById('errorMsg').classList.remove('active');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.tab-btn[onclick*="${name}"]`).classList.add('active');
+  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+
+  // 触发 resize 让图表重新适配
+  setTimeout(() => {
+    window.dispatchEvent(new Event('resize'));
+  }, 100);
+}
+
+// ============ 自动加载示例 ============
+window.addEventListener('DOMContentLoaded', () => {
+  loadDemoData();
+});
+</script>
+</body>
+</html>

@@ -1,75 +1,35 @@
-# Stock K-Line Report Generator
+# 量化交易：AI大模型辅助的金融交易策略
 
-股票日线行情数据下载与交互式 K 线图报表生成工具。
+基于 Tushare Pro 数据的 A 股量化分析全流程实战项目。
 
-## 功能
+## 项目路线图
 
-- 通过 [Tushare Pro](https://tushare.pro) 下载指定股票的日线行情数据
-- 自动生成交互式 HTML 报表，包含：
-  - **K 线图** — 带滑动缩放、十字光标提示
-  - **成交量柱状图** — 涨跌着色（A 股红涨绿跌）
-  - **收盘价曲线图** — 带渐变面积的平滑折线
-  - **关键统计卡片** — 区间最高/最低/涨跌幅/总成交量
-  - **完整数据表格** — 按日期倒序，支持横向滚动
-  - **一键下载** — 每个图表均可导出为 PNG 图片
-- 同时导出 CSV 原始数据
+| Task | 主题 | 内容 |
+|------|------|------|
+| **Task 1** | 基础行情数据 | 日线数据获取、K线图看板、CSV 导出 |
+| **Task 2** | 数据诊断与技术指标 | 数据质量分析、MA/MACD/RSI/布林带/KDJ 指标 |
+| **Task 3** | 双均线策略回测 | 金叉死叉策略、多股票多参数对比、最优参数搜索 |
+| **Task 4** | 海龟交易法则 | 唐奇安通道、ATR 仓位管理、多品种回测 |
 
-## 快速开始
+## 成果门户
 
-### 1. 安装依赖
-
-```bash
-pip install tushare pandas
-```
-
-### 2. 设置 Tushare Token
-
-注册 [Tushare Pro](https://tushare.pro) 获取 token，然后：
-
-```bash
-# Linux / macOS
-export TUSHARE_TOKEN=你的token
-
-# Windows CMD
-set TUSHARE_TOKEN=你的token
-
-# Windows PowerShell
-$env:TUSHARE_TOKEN="你的token"
-```
-
-也可直接在脚本中修改 `TOKEN` 变量。
-
-### 3. 运行
-
-```bash
-# 默认：寒武纪(688256.SH) 过去12个月
-python stock_kline_report.py
-
-# 自定义：贵州茅台 过去2年
-python stock_kline_report.py --tscode 600519.SH --name 贵州茅台 --months 24
-
-# 指定输出文件
-python stock_kline_report.py --tscode 000300.SH --name 沪深300 -o 沪深300行情.html
-```
-
-### 4. 查看结果
-
-用浏览器打开生成的 `.html` 文件即可查看交互式图表。
-
-## 输出文件
-
-| 文件 | 说明 |
-|------|------|
-| `*_行情报表_*.html` | 交互式 HTML 报表（可直接浏览器打开） |
-| `*_日线数据.csv` | 原始日线行情数据（UTF-8 with BOM） |
+👉 [打开成果门户](index.html) — 一站式浏览所有看板、图表和数据
 
 ## 技术栈
 
-- **数据源**: Tushare Pro API
-- **数据清洗**: Pandas
-- **可视化**: ECharts 5
-- **颜色规范**: A 股市场红涨绿跌
+- **数据源**: Tushare Pro
+- **数据处理**: Python, Pandas, NumPy
+- **可视化**: ECharts, Chart.js, Matplotlib
+- **策略回测**: 双均线策略、海龟交易法则
+
+## 快速开始
+
+```bash
+pip install tushare pandas
+# 设置 TUSHARE_TOKEN 环境变量后运行:
+python "Task 1/stock_kline_report.py"
+```
 
 ## 开源协议
 
-[MIT License](LICENSE)
+MIT
