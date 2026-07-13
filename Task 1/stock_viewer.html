@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股票行情看板 — 多股票查询</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;color:#333}
+.header{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:24px 20px;text-align:center}
+.header h1{font-size:22px;margin-bottom:4px}
+.header p{font-size:13px;opacity:.75}
+.search{max-width:700px;margin:20px auto;background:#fff;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.search .f{display:flex;flex-direction:column;gap:4px}
+.search .f label{font-size:12px;font-weight:600;color:#666}
+.search .f input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:160px;outline:none}
+.search .f input:focus{border-color:#302b63}
+.search button{padding:8px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#302b63;color:#fff;height:36px;transition:background .2s}
+.search button:hover{background:#1a1640}
+.search .hint{font-size:12px;color:#999;margin-left:auto;align-self:center}
+.quick{max-width:700px;margin:12px auto 0;padding:0 20px;display:flex;gap:8px;flex-wrap:wrap}
+.quick button{padding:4px 14px;border:1px solid #ddd;border-radius:14px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .2s}
+.quick button:hover{background:#302b63;color:#fff;border-color:#302b63}
+.loading{text-align:center;padding:60px;color:#999;display:none}
+.loading .sp{display:inline-block;width:32px;height:32px;border:3px solid #e0e0e0;border-top-color:#302b63;border-radius:50%;animation:s .8s linear infinite;margin-bottom:12px}
+@keyframes s{to{transform:rotate(360deg)}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;max-width:1100px;margin:0 auto 16px;padding:0 20px}
+.sc{background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.sc .l{font-size:11px;color:#888;margin-bottom:2px}
+.sc .v{font-size:18px;font-weight:700}
+.sc .v.r{color:#c62828}.sc .v.g{color:#2e7d32}
+.charts{max-width:1100px;margin:0 auto;padding:0 20px 20px}
+.cb{background:#fff;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.cb .ct{font-size:14px;font-weight:700;color:#333;margin-bottom:8px}
+#klineC{width:100%;height:420px}
+#volC{width:100%;height:130px}
+#closeC{width:100%;height:320px}
+.er{max-width:700px;margin:20px auto;background:#fff0f0;border:1px solid #ffcdd2;border-radius:8px;padding:14px 18px;color:#c62828;display:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📊 股票日线行情看板</h1>
+    <p id="sub">输入股票代码查看 K 线图</p>
+</div>
+
+<div class="search">
+    <div class="f">
+        <label>股票代码</label>
+        <input id="code" value="sh600519" placeholder="sh600519 / sz000001 / hk00700">
+    </div>
+    <div class="f">
+        <label>天数</label>
+        <input id="days" value="365" placeholder="365">
+    </div>
+    <button onclick="q()">🔍 查询</button>
+    <span class="hint">sh=沪市 sz=深市 hk=港股 us=美股</span>
+</div>
+<div class="quick">
+    <button onclick="qc('sh600519')">贵州茅台</button>
+    <button onclick="qc('sh688256')">寒武纪</button>
+    <button onclick="qc('sz000001')">平安银行</button>
+    <button onclick="qc('sz300750')">宁德时代</button>
+    <button onclick="qc('hk00700')">腾讯控股</button>
+    <button onclick="qc('usAAPL.OQ')">苹果</button>
+    <button onclick="qc('hk09988')">阿里巴巴</button>
+    <button onclick="qc('sz002594')">比亚迪</button>
+</div>
+
+<div class="er" id="err"></div>
+<div class="loading" id="load"><div class="sp"></div>正在获取数据...</div>
+
+<div id="ct" style="display:none">
+    <div class="stats" id="st"></div>
+    <div class="charts">
+        <div class="cb"><div class="ct">K 线图</div><div id="klineC"></div></div>
+        <div class="cb"><div class="ct">成交量</div><div id="volC"></div></div>
+        <div class="cb"><div class="ct">收盘价曲线</div><div id="closeC"></div></div>
+    </div>
+</div>
+
+<script>
+function $(id){return document.getElementById(id)}
+
+async function q(){
+    let code = $('code').value.trim();
+    let days = parseInt($('days').value) || 365;
+    if(!code){se('请输入股票代码');return}
+    $('err').style.display='none';
+    $('ct').style.display='none';
+    $('load').style.display='block';
+
+    try {
+        let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,${days},qfq`;
+        let r = await fetch(url);
+        let j = await r.json();
+        if(j.error || !j.data){se('未获取到数据，请检查股票代码格式');return}
+        
+        // 找K线数据
+        let d = j.data;
+        let keys = Object.keys(d);
+        let kd = null;
+        for(let k of keys){
+            if(d[k].day){kd=d[k].day;break}
+            if(d[k].qfqday){kd=d[k].qfqday;break}
+        }
+        // 试试其他结构
+        if(!kd) for(let k of keys){if(Array.isArray(d[k])){kd=d[k];break}}
+        if(!kd){se('无法解析数据格式');console.log(j);return}
+        
+        rn(kd, code);
+    } catch(e){
+        se('请求失败: '+e.message);
+    }
+    $('load').style.display='none';
+}
+
+function qc(c){$('code').value=c;q()}
+
+function se(m){$('load').style.display='none';$('err').textContent=m;$('err').style.display='block'}
+
+function rn(raw, code){
+    // raw: [["2025-01-02", 1445.0, 1455.0, 1435.0, 1448.0, 12345], ...]
+    // 格式: [日期, 开盘, 收盘, 最高, 最低, 成交量]
+    let dates = [], kd = [], vol = [], pct = [];
+    let firstClose = 0;
+    
+    for(let i=0;i<raw.length;i++){
+        let r = raw[i];
+        dates.push(r[0]);
+        kd.push([r[1], r[2], r[4], r[3]]); // [open, close, low, high]
+        vol.push(r[5]);
+        if(i>0){
+            let prev = raw[i-1][2];
+            pct.push((r[2]-prev)/prev*100);
+        } else {
+            firstClose = r[2];
+            pct.push(0);
+        }
+    }
+    
+    let lastClose = kd[kd.length-1][1];
+    let high = Math.max(...kd.map(x=>x[3]));
+    let low = Math.min(...kd.map(x=>x[2]));
+    let chg = lastClose - firstClose;
+    let chgPct = chg / firstClose * 100;
+    let totalVol = vol.reduce((a,b)=>a+b,0);
+    
+    $('sub').textContent = code + ' — ' + dates[0] + ' ~ ' + dates[dates.length-1];
+    $('ct').style.display='block';
+    
+    $('st').innerHTML = [
+        {l:'起始日',v:dates[0]},{l:'最新收盘',v:'¥'+lastClose.toFixed(2),c:chg>=0?'r':'g'},
+        {l:'区间最高',v:'¥'+high.toFixed(2)},{l:'区间最低',v:'¥'+low.toFixed(2)},
+        {l:'涨跌额',v:(chg>=0?'+':'')+'¥'+chg.toFixed(2),c:chg>=0?'r':'g'},
+        {l:'涨跌幅',v:(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%',c:chgPct>=0?'r':'g'},
+        {l:'总成交量',v:(totalVol/10000).toFixed(2)+'万手'},{l:'交易日数',v:dates.length+'天'}
+    ].map(x=>'<div class="sc"><div class="l">'+x.l+'</div><div class="v '+(x.c||'')+'">'+x.v+'</div></div>').join('');
+    
+    let fmtD=d=>d.substring(0,4)+'-'+d.substring(5,7)+'-'+d.substring(8,10);
+    let volColors = pct.map(p=>p>=0?'#c62828':'#2e7d32');
+    let interval = Math.max(1, Math.floor(dates.length/20));
+    
+    // K线
+    let kc = echarts.init($('klineC'));
+    kc.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'},
+            formatter:function(p){const i=p[0].dataIndex;
+                return '<b>'+dates[i]+'</b><br/>开盘：¥'+kd[i][0].toFixed(2)+'<br/>收盘：¥'+kd[i][1].toFixed(2)+'<br/>最高：¥'+kd[i][3].toFixed(2)+'<br/>最低：¥'+kd[i][2].toFixed(2)+'<br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#c62828':'#2e7d32')+'">'+pct[i].toFixed(2)+'%</span><br/>成交量：'+(vol[i]/10000).toFixed(2)+'万手';}},
+        grid:{left:'12%',right:'8%',top:'10%',bottom:'6%'},
+        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval}},
+        yAxis:{type:'value',scale:true,name:'价格 (¥)',nameLocation:'middle',nameGap:50,axisLabel:{formatter:'¥{value}'}},
+        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
+        series:[{type:'candlestick',data:kd,itemStyle:{color:'#c62828',color0:'#2e7d32',borderColor:'#c62828',borderColor0:'#2e7d32'}}]
+    });
+    
+    // 成交量
+    let vc = echarts.init($('volC'));
+    vc.setOption({
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return '<b>'+dates[i]+'</b><br/>成交量：'+(vol[i]/10000).toFixed(2)+'万手';}},
+        grid:{left:'12%',right:'8%',top:'18%',bottom:'6%'},
+        xAxis:{type:'category',data:dates,axisLabel:{show:false}},
+        yAxis:{type:'value',name:'成交量(手)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万'}},
+        series:[{type:'bar',data:vol.map((v,i)=>({value:v,itemStyle:{color:volColors[i]}})),barWidth:'50%'}]
+    });
+    
+    // 收盘价
+    let cp = kd.map(x=>x[1]);
+    let cc = echarts.init($('closeC'));
+    cc.setOption({
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return '<b>'+dates[i]+'</b><br/>收盘价：<span style="color:#2196F3;font-weight:700">¥'+cp[i].toFixed(2)+'</span><br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#c62828':'#2e7d32')+'">'+pct[i].toFixed(2)+'%</span>';}},
+        grid:{left:'10%',right:'8%',top:'10%',bottom:'12%'},
+        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval}},
+        yAxis:{type:'value',scale:true,name:'收盘价(¥)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:'¥{value}'}},
+        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
+        series:[{type:'line',data:cp,smooth:true,symbol:'none',lineStyle:{width:2,color:'#2196F3'},
+            areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(33,150,243,0.25)'},{offset:1,color:'rgba(33,150,243,0.02)'}]}}}]
+    });
+}
+
+// 默认加载茅台
+q();
+</script>
+</body>
+</html>
