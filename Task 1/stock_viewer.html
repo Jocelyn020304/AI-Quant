@@ -3,219 +3,245 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>股票行情看板 — 多股票查询</title>
+<title>股票行情看板</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;color:#333}
-.header{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:24px 20px;text-align:center}
-.header h1{font-size:22px;margin-bottom:4px}
-.header p{font-size:13px;opacity:.75}
-.search{max-width:1100px;margin:20px auto 0;background:#fff;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.search .f{display:flex;flex-direction:column;gap:4px}
-.search .f label{font-size:12px;font-weight:600;color:#666}
-.search .f input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:160px;outline:none}
-.search .f input:focus{border-color:#302b63}
-.search button{padding:8px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#302b63;color:#fff;height:36px;transition:background .2s}
-.search button:hover{background:#1a1640}
-.search .hint{font-size:12px;color:#999;margin-left:auto;align-self:center}
-.quick{max-width:1100px;margin:12px auto 0;padding:0 20px;display:flex;gap:8px;flex-wrap:wrap}
-.quick button{padding:4px 14px;border:1px solid #ddd;border-radius:14px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .2s}
-.quick button:hover{background:#302b63;color:#fff;border-color:#302b63}
-.loading{text-align:center;padding:60px;color:#999;display:none}
-.loading .sp{display:inline-block;width:32px;height:32px;border:3px solid #e0e0e0;border-top-color:#302b63;border-radius:50%;animation:s .8s linear infinite;margin-bottom:12px}
+body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;background:#f4f5f7;color:#1f2329}
+
+.header{background:#fff;color:#1f2329;padding:14px 24px;border-bottom:1px solid #e6e8eb;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.header .logo{width:28px;height:28px;background:#e63946;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px}
+.header h1{font-size:18px;font-weight:600;margin:0;letter-spacing:.3px}
+.header .sep{color:#c9cdd4;font-size:14px}
+.header .hint{font-size:12px;color:#86909c;margin-left:auto}
+
+.container{max-width:1280px;margin:0 auto;padding:16px 20px}
+
+/* 控制面板 */
+.controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.controls .field{display:flex;flex-direction:column;gap:5px}
+.controls .field label{font-size:12px;font-weight:500;color:#4e5969;white-space:nowrap}
+.controls .field input{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s}
+.controls .field input:focus{border-color:#3370ff}
+.controls .field input.code{width:150px}
+.controls .field input.datew{width:140px}
+.controls button{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;padding:0 18px}
+.controls .btn-primary{background:#3370ff;color:#fff}
+.controls .btn-primary:hover{background:#1d5ce0}
+.controls .btn-hot{height:28px;padding:0 10px;border:1px solid #c9cdd4;background:#fff;border-radius:3px;font-size:12px;color:#4e5969;cursor:pointer;transition:all .15s}
+.controls .btn-hot:hover{border-color:#3370ff;color:#3370ff}
+.controls .hot-group{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+
+/* 错误 & 加载 */
+.error-msg{background:#fff2f0;border:1px solid #ffccc7;border-radius:4px;padding:10px 16px;color:#cf1322;margin-bottom:12px;display:none;font-size:13px}
+.loading{text-align:center;padding:50px;color:#86909c;font-size:14px;display:none}
+.loading .sp{display:inline-block;width:28px;height:28px;border:2px solid #e6e8eb;border-top-color:#3370ff;border-radius:50%;animation:s .8s linear infinite;margin-bottom:10px}
 @keyframes s{to{transform:rotate(360deg)}}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;max-width:1100px;margin:0 auto 16px;padding:0 20px}
-.sc{background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.sc .l{font-size:11px;color:#888;margin-bottom:2px}
-.sc .v{font-size:18px;font-weight:700}
-.sc .v.r{color:#c62828}.sc .v.g{color:#2e7d32}
-.charts{max-width:1100px;margin:0 auto;padding:0 20px 20px}
-.cb{background:#fff;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.cb .ct{font-size:14px;font-weight:700;color:#333;margin-bottom:8px}
-#klineC{width:100%;height:420px}
-#volC{width:100%;height:130px}
-#closeC{width:100%;height:320px}
-.er{max-width:700px;margin:20px auto;background:#fff0f0;border:1px solid #ffcdd2;border-radius:8px;padding:14px 18px;color:#c62828;display:none}
+
+/* 统计卡片 */
+.stats{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#e6e8eb;border:1px solid #e6e8eb;border-radius:6px;margin-bottom:14px;overflow:hidden}
+.sc{background:#fff;padding:14px 12px;text-align:left}
+.sc .l{font-size:12px;color:#86909c;margin-bottom:4px}
+.sc .v{font-size:18px;font-weight:600;color:#1f2329}
+.sc .v.r{color:#e63946}
+.sc .v.g{color:#16a34a}
+.sc .v .small{font-size:13px;font-weight:400;color:#86909c}
+
+/* 图表卡片 */
+.chart-card{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 16px;margin-bottom:14px}
+.chart-card .ctitle{font-size:14px;font-weight:600;color:#1f2329;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.chart-card .ctitle::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+#kc{width:100%;height:440px}
+#vc{width:100%;height:140px}
+#cc{width:100%;height:320px}
+
+@media(max-width:900px){
+    .stats{grid-template-columns:repeat(4,1fr)}
+    .controls .field input.code{width:120px}
+    .controls .field input.datew{width:110px}
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>📊 股票日线行情看板</h1>
-    <p id="sub">输入股票代码查看 K 线图</p>
-</div>
-
-<div class="search">
-    <div class="f">
-        <label>股票代码</label>
-        <input id="code" value="sh600519" placeholder="sh600519 / sz000001 / hk00700">
-    </div>
-    <div class="f">
-        <label>开始日期</label>
-        <input id="start" type="date" value="2025-01-01">
-    </div>
-    <div class="f">
-        <label>结束日期</label>
-        <input id="end" type="date" value="2026-07-13">
-    </div>
-    <button onclick="q()">🔍 查询</button>
+    <div class="logo">📊</div>
+    <h1>股票行情看板</h1>
+    <span class="sep">|</span>
+    <span style="font-size:13px;color:#4e5969;font-weight:500" id="stockInfo">等待查询...</span>
     <span class="hint">sh=沪市 sz=深市 hk=港股 us=美股</span>
 </div>
-<div class="quick">
-    <button onclick="qc('sh600519')">贵州茅台</button>
-    <button onclick="qc('sh688256')">寒武纪</button>
-    <button onclick="qc('sz000001')">平安银行</button>
-    <button onclick="qc('sz300750')">宁德时代</button>
-    <button onclick="qc('hk00700')">腾讯控股</button>
-    <button onclick="qc('usAAPL.OQ')">苹果</button>
-    <button onclick="qc('hk09988')">阿里巴巴</button>
-    <button onclick="qc('sz002594')">比亚迪</button>
+
+<div class="container">
+
+<div class="controls">
+    <div class="field">
+        <label>股票代码</label>
+        <input class="code" id="code" value="sh600519" placeholder="sh600519">
+    </div>
+    <div class="field">
+        <label>开始日期</label>
+        <input class="datew" id="start" type="date" value="2025-07-01">
+    </div>
+    <div class="field">
+        <label>结束日期</label>
+        <input class="datew" id="end" type="date" value="">
+    </div>
+    <button class="btn-primary" onclick="q()">查 询</button>
+    <div class="hot-group">
+        <button class="btn-hot" onclick="qc('sh600519')">贵州茅台</button>
+        <button class="btn-hot" onclick="qc('sh688256')">寒武纪</button>
+        <button class="btn-hot" onclick="qc('sz000001')">平安银行</button>
+        <button class="btn-hot" onclick="qc('sz300750')">宁德时代</button>
+        <button class="btn-hot" onclick="qc('hk00700')">腾讯控股</button>
+    </div>
 </div>
 
-<div class="er" id="err"></div>
+<div class="error-msg" id="err"></div>
 <div class="loading" id="load"><div class="sp"></div>正在获取数据...</div>
 
 <div id="ct" style="display:none">
     <div class="stats" id="st"></div>
-    <div class="charts">
-        <div class="cb"><div class="ct">K 线图</div><div id="klineC"></div></div>
-        <div class="cb"><div class="ct">成交量</div><div id="volC"></div></div>
-        <div class="cb"><div class="ct">收盘价曲线</div><div id="closeC"></div></div>
+
+    <div class="chart-card">
+        <div class="ctitle">K 线图</div>
+        <div id="kc"></div>
     </div>
+    <div class="chart-card">
+        <div class="ctitle">成交量</div>
+        <div id="vc"></div>
+    </div>
+    <div class="chart-card">
+        <div class="ctitle">收盘价曲线</div>
+        <div id="cc"></div>
+    </div>
+</div>
+
 </div>
 
 <script>
 function $(id){return document.getElementById(id)}
+function se(m){$('load').style.display='none';$('err').textContent=m;$('err').style.display='block'}
+function qc(c){$('code').value=c;q()}
+
+// 默认结束日期为今天
+$('end').valueAsDate = new Date();
 
 async function q(){
     let code = $('code').value.trim();
     let startDate = $('start').value;
     let endDate = $('end').value;
     if(!code){se('请输入股票代码');return}
-    if(!startDate || !endDate){se('请选择起止日期');return}
+    if(!startDate||!endDate){se('请选择起止日期');return}
+
     $('err').style.display='none';
     $('ct').style.display='none';
     $('load').style.display='block';
+    $('stockInfo').textContent = code + ' 查询中...';
 
     try {
-        // 腾讯 API 格式: 2025-01-01,2026-07-13
         let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${startDate},${endDate},500,qfq`;
         let r = await fetch(url);
         let j = await r.json();
-        console.log('API返回:', j);
-        if(!j || j.code !== 0 || !j.data){se('API错误: '+(j.msg||'无数据'));return}
-        
-        // 取第一个 key (如 "sh600519")
+        if(!j||j.code!==0||!j.data){se('API错误: '+(j.msg||'无数据'));$('stockInfo').textContent='等待查询...';return}
+
         let keys = Object.keys(j.data);
-        if(keys.length === 0){se('返回数据为空');return}
+        if(!keys.length){se('返回数据为空');return}
         let stock = j.data[keys[0]];
         if(!stock){se('无法获取股票数据');return}
-        
-        // 优先取 qfqday (前复权), 其次 day
         let kd = stock.qfqday || stock.day;
-        if(!kd || !Array.isArray(kd) || kd.length === 0){se('该时间范围内无数据');return}
-        
-        rn(kd, code);
+        if(!kd||!Array.isArray(kd)||!kd.length){se('该时间范围内无数据');return}
+
+        $('stockInfo').textContent = code + ' — ' + kd[0][0] + ' ~ ' + kd[kd.length-1][0] + '  (' + kd.length + '个交易日)';
+        render(kd, code);
     } catch(e){
         se('请求失败: '+e.message);
-        console.error(e);
+        $('stockInfo').textContent='等待查询...';
     }
     $('load').style.display='none';
 }
 
-function qc(c){$('code').value=c;q()}
+function render(raw, code){
+    let dates=[], kd=[], vol=[], pct=[];
+    let firstClose=0;
 
-function se(m){$('load').style.display='none';$('err').textContent=m;$('err').style.display='block'}
-
-function rn(raw, code){
-    // raw: [["2025-01-02", 1445.0, 1455.0, 1435.0, 1448.0, 12345], ...]
-    // 格式: [日期, 开盘, 收盘, 最高, 最低, 成交量]
-    // 重要: 腾讯API返回的值都是字符串,需要转数字
-    let dates = [], kd = [], vol = [], pct = [];
-    let firstClose = 0;
-    
     for(let i=0;i<raw.length;i++){
-        let r = raw[i];
-        // 强制转数字
-        let o = parseFloat(r[1]);
-        let c = parseFloat(r[2]);
-        let h = parseFloat(r[3]);
-        let l = parseFloat(r[4]);
-        let v = parseFloat(r[5]);
-        
+        let r=raw[i];
+        let o=parseFloat(r[1]),c=parseFloat(r[2]),h=parseFloat(r[3]),l=parseFloat(r[4]),v=parseFloat(r[5]);
         dates.push(r[0]);
-        kd.push([o, c, l, h]); // [open, close, low, high]
+        kd.push([o,c,l,h]);
         vol.push(v);
         if(i>0){
-            let prev = parseFloat(raw[i-1][2]);
+            let prev=parseFloat(raw[i-1][2]);
             pct.push((c-prev)/prev*100);
-        } else {
-            firstClose = c;
-            pct.push(0);
-        }
+        } else {firstClose=c;pct.push(0)}
     }
-    
-    let lastClose = kd[kd.length-1][1];
-    let high = Math.max.apply(null, kd.map(x=>x[3]));
-    let low = Math.min.apply(null, kd.map(x=>x[2]));
-    let chg = lastClose - firstClose;
-    let chgPct = chg / firstClose * 100;
-    let totalVol = vol.reduce((a,b)=>a+b,0);
-    
-    $('sub').textContent = code + ' — ' + dates[0] + ' ~ ' + dates[dates.length-1];
+
+    let lastClose=kd[kd.length-1][1];
+    let high=Math.max(...kd.map(x=>x[3]));
+    let low=Math.min(...kd.map(x=>x[2]));
+    let chg=lastClose-firstClose;
+    let chgPct=chg/firstClose*100;
+    let totalVol=vol.reduce((a,b)=>a+b,0);
+    let upDown=chg>=0?'r':'g';
+
     $('ct').style.display='block';
-    
-    $('st').innerHTML = [
-        {l:'起始日',v:dates[0]},{l:'最新收盘',v:'¥'+lastClose.toFixed(2),c:chg>=0?'r':'g'},
-        {l:'区间最高',v:'¥'+high.toFixed(2)},{l:'区间最低',v:'¥'+low.toFixed(2)},
-        {l:'涨跌额',v:(chg>=0?'+':'')+'¥'+chg.toFixed(2),c:chg>=0?'r':'g'},
-        {l:'涨跌幅',v:(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%',c:chgPct>=0?'r':'g'},
-        {l:'总成交量',v:(totalVol/10000).toFixed(2)+'万手'},{l:'交易日数',v:dates.length+'天'}
+    $('st').innerHTML=[
+        {l:'起始日期',v:dates[0]},{l:'最新收盘',v:'¥'+lastClose.toFixed(2),c:upDown},
+        {l:'区间最高',v:'¥'+high.toFixed(2),c:''},{l:'区间最低',v:'¥'+low.toFixed(2),c:''},
+        {l:'涨跌额',v:(chg>=0?'+':'')+chg.toFixed(2),c:upDown},
+        {l:'涨跌幅',v:chgPct.toFixed(2)+'%',c:upDown},
+        {l:'总成交量',v:(totalVol/10000).toFixed(2)+'万手',c:''},
+        {l:'交易天数',v:dates.length+'天',c:''}
     ].map(x=>'<div class="sc"><div class="l">'+x.l+'</div><div class="v '+(x.c||'')+'">'+x.v+'</div></div>').join('');
-    
-    let fmtD=d=>d.substring(0,4)+'-'+d.substring(5,7)+'-'+d.substring(8,10);
-    let volColors = pct.map(p=>p>=0?'#c62828':'#2e7d32');
-    let interval = Math.max(1, Math.floor(dates.length/20));
-    
+
+    let interval=Math.max(1,Math.floor(dates.length/22));
+    let volColors=pct.map(p=>p>=0?'#e63946':'#16a34a');
+
     // K线
-    let kc = echarts.init($('klineC'));
+    let kc=echarts.init($('kc'));
     kc.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'cross'},
-            formatter:function(p){const i=p[0].dataIndex;
-                return '<b>'+dates[i]+'</b><br/>开盘：¥'+kd[i][0].toFixed(2)+'<br/>收盘：¥'+kd[i][1].toFixed(2)+'<br/>最高：¥'+kd[i][3].toFixed(2)+'<br/>最低：¥'+kd[i][2].toFixed(2)+'<br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#c62828':'#2e7d32')+'">'+pct[i].toFixed(2)+'%</span><br/>成交量：'+(vol[i]/10000).toFixed(2)+'万手';}},
-        grid:{left:'12%',right:'8%',top:'10%',bottom:'6%'},
-        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval}},
-        yAxis:{type:'value',scale:true,name:'价格 (¥)',nameLocation:'middle',nameGap:50,axisLabel:{formatter:'¥{value}'}},
-        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
-        series:[{type:'candlestick',data:kd,itemStyle:{color:'#c62828',color0:'#2e7d32',borderColor:'#c62828',borderColor0:'#2e7d32'}}]
+            formatter:function(p){const i=p[0].dataIndex;return '<b>'+dates[i]+'</b><br/>开盘：¥'+kd[i][0].toFixed(2)+'<br/>收盘：¥'+kd[i][1].toFixed(2)+'<br/>最高：¥'+kd[i][3].toFixed(2)+'<br/>最低：¥'+kd[i][2].toFixed(2)+'<br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#e63946':'#16a34a')+'">'+pct[i].toFixed(2)+'%</span><br/>成交量：'+(vol[i]/10000).toFixed(2)+'万手';}},
+        grid:{left:'12%',right:'8%',top:'8%',bottom:'6%'},
+        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval},
+            axisLine:{lineStyle:{color:'#e6e8eb'}},splitLine:{show:false}},
+        yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'#f4f5f7',type:'dashed'}},
+            axisLabel:{formatter:'¥{value}'},name:'价格',nameLocation:'middle',nameGap:50,nameTextStyle:{fontSize:12,color:'#86909c'}},
+        dataZoom:[{type:'inside'},{type:'slider',height:22,bottom:2,borderColor:'#e6e8eb',handleStyle:{color:'#c9cdd4'},dataBackground:{lineStyle:{color:'#3370ff'},areaStyle:{color:'#e8f0ff'}}}],
+        series:[{type:'candlestick',data:kd,barWidth:'60%',
+            itemStyle:{color:'#e63946',color0:'#16a34a',borderColor:'#e63946',borderColor0:'#16a34a'}}]
     });
-    
+
     // 成交量
-    let vc = echarts.init($('volC'));
+    let vc=echarts.init($('vc'));
     vc.setOption({
         tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return '<b>'+dates[i]+'</b><br/>成交量：'+(vol[i]/10000).toFixed(2)+'万手';}},
-        grid:{left:'12%',right:'8%',top:'18%',bottom:'6%'},
-        xAxis:{type:'category',data:dates,axisLabel:{show:false}},
-        yAxis:{type:'value',name:'成交量(手)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万'}},
+        grid:{left:'12%',right:'8%',top:'14%',bottom:'6%'},
+        xAxis:{type:'category',data:dates,axisLabel:{show:false},axisLine:{show:false}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'#f4f5f7',type:'dashed'}},
+            axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万'},name:'成交量',nameLocation:'middle',nameGap:55,nameTextStyle:{fontSize:12,color:'#86909c'}},
         series:[{type:'bar',data:vol.map((v,i)=>({value:v,itemStyle:{color:volColors[i]}})),barWidth:'50%'}]
     });
-    
+
     // 收盘价
-    let cp = kd.map(x=>x[1]);
-    let cc = echarts.init($('closeC'));
+    let cp=kd.map(x=>x[1]);
+    let cc=echarts.init($('cc'));
     cc.setOption({
-        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return '<b>'+dates[i]+'</b><br/>收盘价：<span style="color:#2196F3;font-weight:700">¥'+cp[i].toFixed(2)+'</span><br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#c62828':'#2e7d32')+'">'+pct[i].toFixed(2)+'%</span>';}},
-        grid:{left:'10%',right:'8%',top:'10%',bottom:'12%'},
-        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval}},
-        yAxis:{type:'value',scale:true,name:'收盘价(¥)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:'¥{value}'}},
-        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
-        series:[{type:'line',data:cp,smooth:true,symbol:'none',lineStyle:{width:2,color:'#2196F3'},
-            areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(33,150,243,0.25)'},{offset:1,color:'rgba(33,150,243,0.02)'}]}}}]
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;
+            return '<b>'+dates[i]+'</b><br/>收盘价：<span style="color:#3370ff;font-weight:600">¥'+cp[i].toFixed(2)+'</span><br/>涨跌幅：<span style="color:'+(pct[i]>=0?'#e63946':'#16a34a')+'">'+pct[i].toFixed(2)+'%</span>';}},
+        grid:{left:'10%',right:'8%',top:'8%',bottom:'12%'},
+        xAxis:{type:'category',data:dates,axisLabel:{rotate:45,fontSize:10,interval:interval},
+            axisLine:{lineStyle:{color:'#e6e8eb'}},splitLine:{show:false}},
+        yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'#f4f5f7',type:'dashed'}},
+            axisLabel:{formatter:'¥{value}'},name:'收盘价',nameLocation:'middle',nameGap:55,nameTextStyle:{fontSize:12,color:'#86909c'}},
+        dataZoom:[{type:'inside'},{type:'slider',height:22,bottom:2,borderColor:'#e6e8eb',handleStyle:{color:'#c9cdd4'},dataBackground:{lineStyle:{color:'#3370ff'},areaStyle:{color:'#e8f0ff'}}}],
+        series:[{type:'line',data:cp,smooth:true,symbol:'none',lineStyle:{width:2,color:'#3370ff'},
+            areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(51,112,255,0.18)'},{offset:1,color:'rgba(51,112,255,0.02)'}]}}}]
     });
 }
 
-// 默认加载茅台
+// 默认加载
 q();
 </script>
 </body>
