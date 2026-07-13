@@ -473,11 +473,22 @@ function render(d) {
     });
 }
 
+// 短水平线 icon：每条线段 14 像素，匹配折线粗细与样式
+const lineIcon = (dashed) => 'path://' + (dashed
+    ? `M0 8 L4 8 M6 8 L10 8 M12 8 L14 8`  // 虚线
+    : `M0 8 L14 8`);                          // 实线
+
 function renderMain(d) {
     if (chartMain) chartMain.dispose();
     chartMain = echarts.init(document.getElementById('chartMain'));
 
     const upColor = '#e63946', downColor = '#16a34a';
+    const volData = d.vol.map((v, i) => ({
+        value: v,
+        itemStyle: { color: d.pct[i] >= 0 ? upColor : downColor }
+    }));
+
+    // 短水平线 icon：每条线段 14 像素，匹配折线粗细与样式
     const volData = d.vol.map((v, i) => ({
         value: v,
         itemStyle: { color: d.pct[i] >= 0 ? upColor : downColor }
@@ -501,7 +512,16 @@ function renderMain(d) {
                     MA60: ${d.ma.ma60[i]!==null?d.ma.ma60[i].toFixed(2):'-'}`;
             }
         },
-        legend: { data: ['K线', 'MA5', 'MA20', 'MA60'], top: 0 },
+        legend: {
+            data: [
+                { name: 'MA5',  icon: lineIcon(false) },
+                { name: 'MA20', icon: lineIcon(false) },
+                { name: 'MA60', icon: lineIcon(false) }
+            ],
+            top: 0,
+            itemWidth: 14,
+            itemHeight: 14
+        },
         grid: [{ left: '8%', right: '4%', top: '12%', height: '56%' },
                { left: '8%', right: '4%', top: '74%', height: '18%' }],
         xAxis: [
@@ -552,7 +572,16 @@ function renderBoll(d) {
                     带宽: ${d.boll.upper[i]!==null&&d.boll.mid[i]!==null?((d.boll.upper[i]-d.boll.lower[i])/d.boll.mid[i]*100).toFixed(2)+'%':'-'}`;
             }
         },
-        legend: { data: ['K线', '布林上轨', '布林中轨', '布林下轨'], top: 0 },
+        legend: {
+            data: [
+                { name: '布林上轨', icon: lineIcon(true) },
+                { name: '布林中轨', icon: lineIcon(false) },
+                { name: '布林下轨', icon: lineIcon(true) }
+            ],
+            top: 0,
+            itemWidth: 14,
+            itemHeight: 14
+        },
         grid: [{ left: '8%', right: '4%', top: '12%', height: '56%' },
                { left: '8%', right: '4%', top: '74%', height: '18%' }],
         xAxis: [
@@ -579,7 +608,7 @@ function renderRSI(d) {
     chartRSI = echarts.init(document.getElementById('chartRSI'));
     chartRSI.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: ['RSI' + d.rsi.period], top: 0 },
+        legend: { data: [{ name: 'RSI' + d.rsi.period, icon: lineIcon(false) }], top: 0, itemWidth: 14, itemHeight: 14 },
         grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
         xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
         yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
@@ -602,7 +631,11 @@ function renderMACD(d) {
     chartMACD = echarts.init(document.getElementById('chartMACD'));
     chartMACD.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: ['DIF', 'DEA', 'MACD'], top: 0 },
+        legend: { data: [
+            { name: 'DIF', icon: lineIcon(false) },
+            { name: 'DEA', icon: lineIcon(false) },
+            { name: 'MACD', icon: 'rect' }
+        ], top: 0, itemWidth: 14, itemHeight: 14 },
         grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
         xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
         yAxis: { type: 'value', scale: true, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
@@ -620,7 +653,11 @@ function renderKDJ(d) {
     chartKDJ = echarts.init(document.getElementById('chartKDJ'));
     chartKDJ.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: ['K', 'D', 'J'], top: 0 },
+        legend: { data: [
+            { name: 'K', icon: lineIcon(false) },
+            { name: 'D', icon: lineIcon(false) },
+            { name: 'J', icon: lineIcon(false) }
+        ], top: 0, itemWidth: 14, itemHeight: 14 },
         grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
         xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
         yAxis: { type: 'value', scale: true, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },

@@ -644,13 +644,12 @@ function renderBacktest(code, rows, bt, period, atrPeriod, stopAtr){
       return `<b>${dates[i]}</b><br/>开:${kline[i][0].toFixed(2)} 收:${kline[i][1].toFixed(2)}<br/>低:${kline[i][2].toFixed(2)} 高:${kline[i][3].toFixed(2)}<br/>上轨:${bt.upper[i]===null?'-':bt.upper[i].toFixed(2)} 下轨:${bt.lower[i]===null?'-':bt.lower[i].toFixed(2)}<br/>ATR:${bt.atr[i]===null?'-':bt.atr[i].toFixed(2)}<br/>信号:${bt.buySignal[i]?'买入(突破)':(bt.sellSignal[i]?'卖出(下破)':'无')}`;
     }},
     legend:{data:[
-      {name:'K线',icon:'roundRect'},
-      {name:`上轨(${period}日)`,icon:'roundRect'},
-      {name:`下轨(${period}日)`,icon:'roundRect'},
-      {name:'▲ 买入(突破上轨)',icon:'triangle'},
-      {name:'▼ 卖出(跌破下轨)',icon:'triangle'},
-      {name:'× 止损',icon:'triangle'}
-    ],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
+      {name:`上轨(${period}日)`,icon:'roundRect',itemStyle:{color:'#d97706'},lineStyle:{color:'#d97706',type:'dashed'}},
+      {name:`下轨(${period}日)`,icon:'roundRect',itemStyle:{color:'#0891b2'},lineStyle:{color:'#0891b2',type:'dashed'}},
+      {name:'▲ 买入(突破上轨)',icon:'triangle',itemStyle:{color:'#facc15'}},
+      {name:'▼ 卖出(跌破下轨)',icon:'triangle',itemStyle:{color:'#06b6d4'}},
+      {name:'× 止损',icon:'triangle',itemStyle:{color:'#d97706'}}
+    ],top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
     grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},

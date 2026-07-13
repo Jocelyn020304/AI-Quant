@@ -550,7 +550,12 @@ function renderBacktest(code, rows, bt, shortWin, longWin){
       const i=p[0].dataIndex;
       return `<b>${dates[i]}</b><br/>开:${kline[i][0].toFixed(2)} 收:<span style="color:${bt.signal[i]===1?'#e63946':(bt.signal[i]===-1?'#16a34a':'')};font-weight:600">${kline[i][1].toFixed(2)}</span><br/>低:${kline[i][2].toFixed(2)} 高:${kline[i][3].toFixed(2)}<br/>MA${shortWin}:${bt.maShort[i]===null?'-':bt.maShort[i].toFixed(2)} MA${longWin}:${bt.maLong[i]===null?'-':bt.maLong[i].toFixed(2)}<br/>信号:${bt.signal[i]===1?'买入(金叉)':(bt.signal[i]===-1?'卖出(死叉)':'无')}`;
     }},
-    legend:{data:[{name:'K线',icon:'roundRect'},{name:`MA${shortWin}`,icon:'roundRect'},{name:`MA${longWin}`,icon:'roundRect'},{name:'▲ 买入(金叉)',icon:'triangle'},{name:'▼ 卖出(死叉)',icon:'triangle'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
+    legend:{data:[
+      {name:`MA${shortWin}`,icon:'roundRect',itemStyle:{color:'#ff8c00',borderColor:'#ff8c00'},textStyle:{color:'#ff8c00',fontSize:12,fontWeight:'bold'}},
+      {name:`MA${longWin}`,icon:'roundRect',itemStyle:{color:'#1f77b4',borderColor:'#1f77b4'},textStyle:{color:'#1f77b4',fontSize:12,fontWeight:'bold'}},
+      {name:'▲ 买入(金叉)',icon:'triangle',itemStyle:{color:'#facc15',borderColor:'#000000'},textStyle:{color:'#000000',fontSize:12}},
+      {name:'▼ 卖出(死叉)',icon:'triangle',itemStyle:{color:'#06b6d4',borderColor:'#000000'},textStyle:{color:'#000000',fontSize:12}}
+    ],top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:22,textStyle:{fontSize:12,lineHeight:14}},
     grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
@@ -658,7 +663,7 @@ function renderParamCompare(results, dates, bestIdx){
   chartParamCompare = echarts.init(document.getElementById('chartParamCompare'));
   chartParamCompare.setOption({
     tooltip:{trigger:'axis'},
-    legend:{data:results.map(r=>({name:r.label,icon:'roundRect'})),top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+    legend:{data:results.map((r,i)=>({name:r.label,icon:'roundRect',itemStyle:{color:colors[i%colors.length],borderColor:colors[i%colors.length]},textStyle:{color:colors[i%colors.length],fontSize:12,fontWeight:'bold'}})),top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:16,textStyle:{fontSize:12}},
     grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
@@ -735,7 +740,7 @@ function renderStockCompare(results, shortWin, longWin){
   chartStockCompare = echarts.init(document.getElementById('chartStockCompare'));
   chartStockCompare.setOption({
     tooltip:{trigger:'axis'},
-    legend:{data:[...valid.map(r=>({name:r.code,icon:'roundRect'})),{name:'基准净值',icon:'roundRect'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+    legend:{data:[...valid.map((r,i)=>({name:r.code,icon:'roundRect',itemStyle:{color:colors[i%colors.length],borderColor:colors[i%colors.length]},textStyle:{color:colors[i%colors.length],fontSize:12,fontWeight:'bold'}})),{name:'基准净值',icon:'roundRect',itemStyle:{color:'#999999',borderColor:'#999999'},textStyle:{color:'#999999',fontSize:12}}],top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:16,textStyle:{fontSize:12}},
     grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:allDates,axisLabel:{fontSize:10,interval:Math.floor(allDates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},

@@ -453,7 +453,12 @@ function renderBacktest(d){
                 const pct = i>0 ? (d.kline[i][1]-d.kline[i-1][1])/d.kline[i-1][1]*100 : 0;
                 return `<b>${dates[i]}</b><br/>开盘：${fmtP(d.kline[i][0])}<br/>收盘：<span style="color:${pct>=0?'#e63946':'#16a34a'};font-weight:600">${fmtP(d.kline[i][1])}</span><br/>最低：${fmtP(d.kline[i][2])}<br/>最高：${fmtP(d.kline[i][3])}<br/>MA${d.shortWin}：${d.maShort[i]!==null?d.maShort[i].toFixed(2):'-'}<br/>MA${d.longWin}：${d.maLong[i]!==null?d.maLong[i].toFixed(2):'-'}<br/>信号：${d.signal[i]===1?'买入':(d.signal[i]===-1?'卖出':'无')}`;
             }},
-        legend:{data:[{name:'K线',icon:'roundRect'},{name:`MA${d.shortWin}`,icon:'roundRect'},{name:`MA${d.longWin}`,icon:'roundRect'},{name:'▲ 买入(金叉)',icon:'triangle'},{name:'▼ 卖出(死叉)',icon:'triangle'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
+        legend:{data:[
+          {name:`MA${d.shortWin}`,icon:'roundRect',itemStyle:{color:'#ff8c00',borderColor:'#ff8c00'},textStyle:{color:'#ff8c00',fontSize:12,fontWeight:'bold'}},
+          {name:`MA${d.longWin}`,icon:'roundRect',itemStyle:{color:'#1f77b4',borderColor:'#1f77b4'},textStyle:{color:'#1f77b4',fontSize:12,fontWeight:'bold'}},
+          {name:'▲ 买入(金叉)',icon:'triangle',itemStyle:{color:'#facc15',borderColor:'#000000'},textStyle:{color:'#000000',fontSize:12}},
+          {name:'▼ 卖出(死叉)',icon:'triangle',itemStyle:{color:'#06b6d4',borderColor:'#000000'},textStyle:{color:'#000000',fontSize:12}}
+        ],top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:22,textStyle:{fontSize:12,lineHeight:14}},
         grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
@@ -563,7 +568,7 @@ function renderParamCompare(data){
     const colors = ['#d62728','#1f77b4','#2ca02c','#ff7f0e','#9467bd','#8c564b','#e377c2','#7f7f7f'];
     chartParamCompare.setOption({
         tooltip:{trigger:'axis'},
-        legend:{data:results.map(r=>({name:r.param,icon:'roundRect'})),top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+        legend:{data:results.map((r,i)=>({name:r.param,icon:'roundRect',itemStyle:{color:colors[i%colors.length],borderColor:colors[i%colors.length]},textStyle:{color:colors[i%colors.length],fontSize:12,fontWeight:'bold'}})),top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:16,textStyle:{fontSize:12}},
         grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:data.dates,axisLabel:{fontSize:10,interval:Math.floor(data.dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
@@ -653,7 +658,7 @@ function renderStockCompare(data){
 
     chartStockCompare.setOption({
         tooltip:{trigger:'axis'},
-        legend:{data:[...validResults.map(r=>({name:r.tsCode,icon:'roundRect'})),{name:'基准净值',icon:'roundRect'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+        legend:{data:[...validResults.map((r,i)=>({name:r.tsCode,icon:'roundRect',itemStyle:{color:colors[i%colors.length],borderColor:colors[i%colors.length]},textStyle:{color:colors[i%colors.length],fontSize:12,fontWeight:'bold'}})),{name:'基准净值',icon:'roundRect',itemStyle:{color:'#999999',borderColor:'#999999'},textStyle:{color:'#999999',fontSize:12}}],top:8,left:'center',itemWidth:18,itemHeight:10,itemGap:16,textStyle:{fontSize:12}},
         grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:allDates,axisLabel:{fontSize:10,interval:Math.floor(allDates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
