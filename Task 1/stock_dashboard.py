@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-股票行情看板 — 交互式 Web 应用（改进版）
-========================================
+股票行情看板 — 交互式 Web 应用 & 静态 HTML 生成
+============================================
 支持任意 A 股/港股/美股股票，按股票名称或代码查询 K 线图、成交量、收盘价曲线。
 新增: 股票名称搜索 + 输入建议下拉框。
 
-用法：
+用法 1 — 启动服务器（实时切换股票）:
   1. 设置 TUSHARE_TOKEN 环境变量（或在下方修改 TOKEN 变量）
   2. python stock_dashboard.py
   3. 浏览器打开 http://localhost:5000
+
+用法 2 — 生成静态 HTML（双击即可打开，无需服务器）:
+  python stock_dashboard.py --generate --tscode 600519.SH --name 贵州茅台
+  python stock_dashboard.py --generate --tscode 688256.SH
 """
 
 import os
@@ -955,7 +959,43 @@ def api_indicators():
 
 # ===== 启动 =====
 if __name__ == "__main__":
-    # 启动时预加载股票列表（首次会稍慢，后续自动缓存）
+    import sys
+
+    # --- 生成静态 HTML 模式 ---
+    if "--generate" in sys.argv:
+        try:
+            idx = sys.argv.index("--tscode")
+            gen_code = sys.argv[idx + 1]
+        except (ValueError, IndexError):
+            gen_code = "688256.SH"
+        try:
+            idx = sys.argv.index("--name")
+            gen_name = sys.argv[idx + 1]
+        except (ValueError, IndexError):
+            gen_name = ""
+
+        print(f"📊 正在获取 {gen_code} 的行情数据...")
+        try:
+            df = fetch_kline(gen_code)
+        except Exception:
+            # 尝试解析代码
+            resolved = resolve_code(gen_code)
+            df = fetch_kline(resolved)
+
+        ind = calc_indicators(df)
+        name = gen_name or ind["tsCode"]
+
+        html = HTML_TEMPLATE.replace("{{ title }}", f"{name} 日线行情看板")
+        # 写静态 HTML
+        safe = name.replace(" ", "_").replace(".", "_")
+        outfile = f"stock_dashboard_{safe}.html"
+        with open(outfile, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"✅ 已生成静态文件: {outfile}")
+        print(f"   双击打开即可查看，无需启动服务器")
+        sys.exit(0)
+
+    # --- 默认启动服务器 ---
     print("🚀 正在预加载股票基础信息（约 5000+ 只 A 股）...")
     try:
         count = len(load_stock_list())
