@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task 2 数据炼金术：数据诊断与构造交易指标</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;background:#f4f5f7;color:#1f2329;}
+
+.header{background:#fff;color:#1f2329;padding:14px 24px;border-bottom:1px solid #e6e8eb;display:flex;align-items:center;gap:14px}
+.header .logo{width:28px;height:28px;background:#e63946;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+.header h1{font-size:18px;font-weight:600;color:#1f2329;margin:0;letter-spacing:.3px}
+.header .sep{color:#c9cdd4;font-size:14px}
+.header .stock-info{font-size:13px;color:#4e5969;display:flex;align-items:center;gap:10px}
+.header .stock-info .code{color:#1f2329;font-weight:600}
+.header .stock-info .name{color:#4e5969}
+.header .stock-info .date{color:#86909c;font-size:12px}
+
+.container{max-width:1400px;margin:0 auto;padding:16px 20px}
+
+.controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:end}
+.controls .field{display:flex;flex-direction:column;gap:5px;position:relative}
+.controls .field label{font-size:12px;font-weight:500;color:#4e5969}
+.controls .field input,
+.controls .field select{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s}
+.controls .field input:focus,
+.controls .field select:focus{border-color:#3370ff}
+.controls .field.col-2{grid-column:span 2}
+.controls .field.col-3{grid-column:span 3}
+.controls .field.col-4{grid-column:span 4}
+.controls .field.col-5{grid-column:span 5}
+.controls .field.col-12{grid-column:span 12}
+.controls .field .suggest-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e8eb;border-radius:4px;max-height:260px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-top:2px}
+.controls .field .suggest-box.active{display:block}
+.controls .field .suggest-item{padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f1f3;display:flex;justify-content:space-between;align-items:center}
+.controls .field .suggest-item:hover{background:#f2f4f7}
+.controls .field .suggest-item .scode{color:#1f2329;font-weight:600;font-size:12px}
+.controls .field .suggest-item .sname{color:#4e5969}
+.controls .field .suggest-item .smarket{font-size:11px;color:#86909c}
+.controls button{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;padding:0 16px}
+.controls .btn-primary{background:#3370ff;color:#fff}
+.controls .btn-primary:hover{background:#1d5ce0}
+.controls .preset-group{display:flex;gap:6px;flex-wrap:wrap}
+.controls .preset-btn{padding:5px 10px;border:1px solid #c9cdd4;background:#fff;border-radius:3px;font-size:12px;color:#4e5969;cursor:pointer;transition:all .15s;height:32px}
+.controls .preset-btn:hover{border-color:#3370ff;color:#3370ff}
+.controls .preset-btn.active{background:#e8f0ff;border-color:#3370ff;color:#3370ff}
+.controls .hint{font-size:12px;color:#86909c;grid-column:span 12}
+.controls .param-group{display:flex;gap:4px}
+.controls .param-group input{flex:1;min-width:0;text-align:center}
+
+.error-msg{background:#fff2f0;border:1px solid #ffccc7;border-radius:4px;padding:10px 16px;color:#cf1322;margin-bottom:12px;display:none;font-size:13px}
+.error-msg.active{display:block}
+.loading{text-align:center;padding:50px;color:#86909c;font-size:14px;display:none}
+.loading.active{display:block}
+.loading .spinner{display:inline-block;width:28px;height:28px;border:2px solid #e6e8eb;border-top-color:#3370ff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.stats{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#e6e8eb;border:1px solid #e6e8eb;border-radius:6px;margin-bottom:14px;overflow:hidden}
+.stat-card{background:#fff;padding:14px 12px;text-align:left}
+.stat-card .l{font-size:12px;color:#86909c;margin-bottom:4px}
+.stat-card .v{font-size:18px;font-weight:600;color:#1f2329;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.stat-card .v.up{color:#e63946}
+.stat-card .v.down{color:#16a34a}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid #e6e8eb;margin-bottom:14px;background:#fff;border-radius:6px 6px 0 0;padding:0 12px}
+.tab-btn{padding:11px 18px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:#4e5969;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab-btn.active{color:#3370ff;border-bottom-color:#3370ff}
+.tab-btn:hover{color:#3370ff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.chart-card{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 16px;margin-bottom:14px}
+.chart-card .ctitle{font-size:14px;font-weight:600;color:#1f2329;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.chart-card .ctitle::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+#chartMain{width:100%;height:520px}
+#chartBoll{width:100%;height:520px}
+#chartVol{width:100%;height:160px}
+#chartRSI{width:100%;height:280px}
+#chartMACD{width:100%;height:280px}
+#chartKDJ{width:100%;height:280px}
+
+.data-table{background:#fff;border:1px solid #e6e8eb;border-radius:6px;overflow:hidden}
+.data-table .table-header{padding:12px 16px;border-bottom:1px solid #e6e8eb;display:flex;justify-content:space-between;align-items:center}
+.data-table .table-title{font-size:14px;font-weight:600;color:#1f2329;display:flex;align-items:center;gap:6px}
+.data-table .table-title::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+.data-table .table-meta{font-size:12px;color:#86909c}
+.data-table .table-wrap{max-height:520px;overflow-y:auto}
+.data-table .table-wrap::-webkit-scrollbar{width:8px;height:8px}
+.data-table .table-wrap::-webkit-scrollbar-thumb{background:#c9cdd4;border-radius:4px}
+.data-table .table-wrap::-webkit-scrollbar-track{background:#f0f1f3}
+.data-table table{width:100%;border-collapse:collapse;font-size:12px;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.data-table thead{position:sticky;top:0;background:#f7f8fa;z-index:1}
+.data-table th{padding:10px 12px;text-align:right;font-weight:500;color:#4e5969;border-bottom:1px solid #e6e8eb;white-space:nowrap;font-size:12px}
+.data-table th:first-child{text-align:center}
+.data-table td{padding:9px 12px;text-align:right;border-bottom:1px solid #f0f1f3;white-space:nowrap;color:#1f2329}
+.data-table td:first-child{text-align:center;color:#4e5969}
+.data-table tr:hover{background:#fafbfc}
+.data-table .up{color:#e63946}
+.data-table .down{color:#16a34a}
+
+@media (max-width:900px){
+  .controls{grid-template-columns:repeat(6,1fr)}
+  .controls .field.col-2,.controls .field.col-3,.controls .field.col-4,.controls .field.col-5,.controls .field.col-12{grid-column:span 6}
+  .stats{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">T2</div>
+    <h1>Task 2 数据炼金术：数据诊断与构造交易指标</h1>
+    <span class="sep">|</span>
+    <div class="stock-info">
+        <span class="code" id="headerCode">688256.SH</span>
+        <span class="name" id="headerName">寒武纪</span>
+        <span class="date" id="headerDate">--</span>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="controls">
+        <div class="field col-3">
+            <label>股票代码 / 名称</label>
+            <input id="stockInput" value="寒武纪" placeholder="例: 寒武纪 / 600519 / 000001.SZ" autocomplete="off">
+            <div class="suggest-box" id="suggestBox"></div>
+        </div>
+        <div class="field col-2">
+            <label>复权方式</label>
+            <select id="adjType">
+                <option value="qfq" selected>前复权</option>
+                <option value="hfq">后复权</option>
+                <option value="none">不复权</option>
+            </select>
+        </div>
+        <div class="field col-2">
+            <label>开始日期</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="field col-2">
+            <label>结束日期</label>
+            <input type="date" id="endDate">
+        </div>
+        <div class="field col-2">
+            <label>&nbsp;</label>
+            <button class="btn-primary" onclick="fetchData()" style="width:100%">查询</button>
+        </div>
+
+        <div class="field col-12">
+            <label>快捷范围</label>
+            <div class="preset-group">
+                <button type="button" class="preset-btn" data-range="1m">近1月</button>
+                <button type="button" class="preset-btn" data-range="3m">近3月</button>
+                <button type="button" class="preset-btn" data-range="6m">近6月</button>
+                <button type="button" class="preset-btn active" data-range="1y">近1年</button>
+                <button type="button" class="preset-btn" data-range="2y">近2年</button>
+                <button type="button" class="preset-btn" data-range="all">全部</button>
+            </div>
+        </div>
+
+        <div class="field col-2">
+            <label>RSI 周期</label>
+            <input type="number" id="rsiPeriod" value="14" min="2" max="100">
+        </div>
+        <div class="field col-2">
+            <label>MACD 快/慢/信号</label>
+            <div class="param-group">
+                <input type="number" id="macdFast" value="12" title="快线">
+                <input type="number" id="macdSlow" value="26" title="慢线">
+                <input type="number" id="macdSignal" value="9" title="信号线">
+            </div>
+        </div>
+        <div class="field col-2">
+            <label>布林带 周期/倍数</label>
+            <div class="param-group">
+                <input type="number" id="bbPeriod" value="20" title="周期">
+                <input type="number" id="bbK" value="2" step="0.1" title="标准差倍数">
+            </div>
+        </div>
+        <div class="field col-3">
+            <label>KDJ 周期 / M1 / M2</label>
+            <div class="param-group">
+                <input type="number" id="kdjN" value="9" title="N">
+                <input type="number" id="kdjM1" value="3" title="M1">
+                <input type="number" id="kdjM2" value="3" title="M2">
+            </div>
+        </div>
+
+        <div class="hint">数据来源于 Tushare Pro API，复权方式可自由切换。A 股红涨绿跌。</div>
+    </div>
+
+    <div class="error-msg" id="errorBox"></div>
+    <div class="loading" id="loading"><div class="spinner"></div>正在从 Tushare 获取数据...</div>
+
+    <div id="content" style="display:none">
+        <div class="stats" id="statsContainer"></div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="overview">综合视图</button>
+            <button class="tab-btn" data-tab="boll">布林带</button>
+            <button class="tab-btn" data-tab="rsi">RSI</button>
+            <button class="tab-btn" data-tab="macd">MACD</button>
+            <button class="tab-btn" data-tab="kdj">KDJ</button>
+            <button class="tab-btn" data-tab="table">数据表</button>
+        </div>
+
+        <div class="tab-content active" id="tab-overview">
+            <div class="chart-card">
+                <div class="ctitle">K 线、成交量与均线系统</div>
+                <div id="chartMain"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-boll">
+            <div class="chart-card">
+                <div class="ctitle">布林带（Bollinger Bands）</div>
+                <div id="chartBoll"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-rsi">
+            <div class="chart-card">
+                <div class="ctitle">相对强弱指标 RSI</div>
+                <div id="chartRSI"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-macd">
+            <div class="chart-card">
+                <div class="ctitle">指数平滑异同移动平均线 MACD</div>
+                <div id="chartMACD"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-kdj">
+            <div class="chart-card">
+                <div class="ctitle">随机指标 KDJ</div>
+                <div id="chartKDJ"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-table">
+            <div class="data-table">
+                <div class="table-header">
+                    <div class="table-title">指标计算结果明细</div>
+                    <div class="table-meta" id="tableMeta">--</div>
+                </div>
+                <div class="table-wrap" id="dataTableWrap"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const API_BASE = '';
+const fmtP = v => '¥' + Number(v).toFixed(2);
+const fmtPct = v => (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+
+let searchTimer = null;
+let selectedTsCode = '';
+let currentData = null;
+let chartMain, chartBoll, chartRSI, chartMACD, chartKDJ;
+
+// ===== 搜索建议 =====
+document.getElementById('stockInput').addEventListener('input', function(e) {
+    clearTimeout(searchTimer);
+    const val = e.target.value.trim();
+    if (val.length < 1) {
+        document.getElementById('suggestBox').classList.remove('active');
+        return;
+    }
+    searchTimer = setTimeout(() => doSearch(val), 250);
+});
+
+document.getElementById('stockInput').addEventListener('keydown', function(e) {
+    const box = document.getElementById('suggestBox');
+    if (!box.classList.contains('active')) return;
+    const items = box.querySelectorAll('.suggest-item');
+    if (items.length === 0) return;
+    let idx = Array.from(items).findIndex(el => el.classList.contains('hover'));
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        idx = Math.min(idx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        idx = Math.max(idx - 1, 0);
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (idx >= 0) items[idx].click();
+        return;
+    } else return;
+    items.forEach(el => el.classList.remove('hover'));
+    items[idx].classList.add('hover');
+    items[idx].scrollIntoView({block: 'nearest'});
+});
+
+document.addEventListener('click', function(e) {
+    if (!document.getElementById('stockInput').contains(e.target)) {
+        document.getElementById('suggestBox').classList.remove('active');
+    }
+});
+
+async function doSearch(keyword) {
+    const box = document.getElementById('suggestBox');
+    try {
+        const resp = await fetch(API_BASE + '/api/search?q=' + encodeURIComponent(keyword));
+        const data = await resp.json();
+        if (!data.stocks || data.stocks.length === 0) {
+            box.classList.remove('active');
+            return;
+        }
+        box.innerHTML = data.stocks.map(s =>
+            `<div class="suggest-item" onclick="selectStock('${s.tsCode}', '${s.name}')">
+                <span><span class="sname">${s.name}</span> <span class="scode">${s.code}</span></span>
+                <span class="smarket">${s.market || ''}</span>
+            </div>`
+        ).join('');
+        box.classList.add('active');
+    } catch(e) {
+        box.classList.remove('active');
+    }
+}
+
+function selectStock(tsCode, name) {
+    selectedTsCode = tsCode;
+    document.getElementById('stockInput').value = name;
+    document.getElementById('suggestBox').classList.remove('active');
+    fetchData();
+}
+
+// ===== 日期初始化 =====
+function initDates() {
+    const today = new Date();
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+    document.getElementById('endDate').value = formatDate(today);
+    document.getElementById('startDate').value = formatDate(oneYearAgo);
+}
+
+function formatDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// ===== 快捷范围 =====
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyRange(btn.dataset.range);
+    });
+});
+
+function applyRange(range) {
+    const end = new Date();
+    const start = new Date();
+    if (range === '1m') start.setMonth(end.getMonth() - 1);
+    else if (range === '3m') start.setMonth(end.getMonth() - 3);
+    else if (range === '6m') start.setMonth(end.getMonth() - 6);
+    else if (range === '1y') start.setFullYear(end.getFullYear() - 1);
+    else if (range === '2y') start.setFullYear(end.getFullYear() - 2);
+    else if (range === 'all') { start.setFullYear(1990); start.setMonth(0); start.setDate(1); }
+    document.getElementById('endDate').value = formatDate(end);
+    document.getElementById('startDate').value = formatDate(start);
+    fetchData();
+}
+
+// ===== Tab 切换 =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    });
+});
+
+// ===== 查询数据 =====
+async function fetchData() {
+    let code = document.getElementById('stockInput').value.trim();
+    if (selectedTsCode) code = selectedTsCode;
+    if (!code) { showError('请输入股票名称或代码'); return; }
+
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    if (start > end) { showError('开始日期不能晚于结束日期'); return; }
+
+    const adj = document.getElementById('adjType').value;
+    const params = new URLSearchParams({
+        tscode: code,
+        start_date: start,
+        end_date: end,
+        adj: adj,
+        rsi_period: document.getElementById('rsiPeriod').value || 14,
+        macd_fast: document.getElementById('macdFast').value || 12,
+        macd_slow: document.getElementById('macdSlow').value || 26,
+        macd_signal: document.getElementById('macdSignal').value || 9,
+        bb_period: document.getElementById('bbPeriod').value || 20,
+        bb_k: document.getElementById('bbK').value || 2,
+        kdj_n: document.getElementById('kdjN').value || 9,
+        kdj_m1: document.getElementById('kdjM1').value || 3,
+        kdj_m2: document.getElementById('kdjM2').value || 3,
+    });
+
+    hideError();
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('headerCode').textContent = code;
+    document.getElementById('headerName').textContent = '加载中...';
+    document.getElementById('headerDate').textContent = start + ' ~ ' + end;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/indicators?' + params.toString());
+        const data = await resp.json();
+        if (data.error) { showError(data.error); return; }
+        currentData = data;
+        selectedTsCode = '';
+        render(data);
+    } catch(e) {
+        showError('请求失败: ' + e.message);
+    }
+    document.getElementById('loading').classList.remove('active');
+}
+
+function showError(msg) {
+    document.getElementById('loading').classList.remove('active');
+    const box = document.getElementById('errorBox');
+    box.textContent = msg;
+    box.classList.add('active');
+}
+function hideError() { document.getElementById('errorBox').classList.remove('active'); }
+
+// ===== 渲染 =====
+function render(d) {
+    document.getElementById('headerCode').textContent = d.tsCode;
+    document.getElementById('headerName').textContent = d.tsCode.split('.')[0];
+    document.getElementById('headerDate').textContent = d.stats.start + ' ~ ' + d.stats.end;
+    document.getElementById('content').style.display = 'block';
+
+    const s = d.stats;
+    const adjText = {none: '不复权', qfq: '前复权', hfq: '后复权'}[d.adjType] || d.adjType;
+    document.getElementById('statsContainer').innerHTML = [
+        {l:'股票代码', v:d.tsCode},
+        {l:'复权方式', v:adjText},
+        {l:'最新收盘', v:fmtP(s.lastClose)},
+        {l:'区间最高', v:fmtP(s.highMax)},
+        {l:'区间最低', v:fmtP(s.lowMin)},
+        {l:'涨跌额', v:(s.change>=0?'+':'')+s.change.toFixed(2), c:s.change>=0?'up':'down'},
+        {l:'涨跌幅', v:fmtPct(s.changePct), c:s.changePct>=0?'up':'down'},
+        {l:'交易日数', v:s.days+'天'},
+    ].map(x => `<div class="stat-card"><div class="l">${x.l}</div><div class="v ${x.c||''}">${x.v}</div></div>`).join('');
+
+    renderMain(d);
+    renderBoll(d);
+    renderRSI(d);
+    renderMACD(d);
+    renderKDJ(d);
+    renderTable(d);
+
+    window.addEventListener('resize', () => {
+        chartMain && chartMain.resize();
+        chartBoll && chartBoll.resize();
+        chartRSI && chartRSI.resize();
+        chartMACD && chartMACD.resize();
+        chartKDJ && chartKDJ.resize();
+    });
+}
+
+function renderMain(d) {
+    if (chartMain) chartMain.dispose();
+    chartMain = echarts.init(document.getElementById('chartMain'));
+
+    const upColor = '#e63946', downColor = '#16a34a';
+    const volData = d.vol.map((v, i) => ({
+        value: v,
+        itemStyle: { color: d.pct[i] >= 0 ? upColor : downColor }
+    }));
+
+    chartMain.setOption({
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross' },
+            formatter: function(p) {
+                const i = p[0].dataIndex;
+                return `<b>${d.dates[i]}</b><br/>
+                    开盘：${fmtP(d.kline[i][0])}<br/>
+                    收盘：<span style="color:${d.pct[i]>=0?upColor:downColor};font-weight:600">${fmtP(d.kline[i][1])}</span><br/>
+                    最低：${fmtP(d.kline[i][2])}<br/>
+                    最高：${fmtP(d.kline[i][3])}<br/>
+                    涨跌幅：${fmtPct(d.pct[i])}<br/>
+                    成交量：${(d.vol[i]/10000).toFixed(2)}万手<br/>
+                    MA5: ${d.ma.ma5[i]!==null?d.ma.ma5[i].toFixed(2):'-'}<br/>
+                    MA20: ${d.ma.ma20[i]!==null?d.ma.ma20[i].toFixed(2):'-'}<br/>
+                    MA60: ${d.ma.ma60[i]!==null?d.ma.ma60[i].toFixed(2):'-'}`;
+            }
+        },
+        legend: { data: ['K线', 'MA5', 'MA20', 'MA60'], top: 0 },
+        grid: [{ left: '8%', right: '4%', top: '12%', height: '56%' },
+               { left: '8%', right: '4%', top: '74%', height: '18%' }],
+        xAxis: [
+            { type: 'category', data: d.dates, scale: true, boundaryGap: false, axisLine: { lineStyle: { color: '#e6e8eb' } }, axisLabel: { show: false }, splitLine: { show: false }, min: 'dataMin', max: 'dataMax' },
+            { type: 'category', gridIndex: 1, data: d.dates, scale: true, boundaryGap: false, axisLine: { lineStyle: { color: '#e6e8eb' } }, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, splitLine: { show: false }, min: 'dataMin', max: 'dataMax' }
+        ],
+        yAxis: [
+            { scale: true, splitArea: { show: false }, axisLabel: { formatter: '¥{value}', color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+            { scale: true, gridIndex: 1, splitNumber: 2, axisLabel: { show: false }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false } }
+        ],
+        dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100 }, { type: 'slider', xAxisIndex: [0, 1], start: 0, end: 100, height: 18, bottom: 10, borderColor: '#c9cdd4', fillerColor: 'rgba(51,112,255,0.1)' }],
+        series: [
+            { name: 'K线', type: 'candlestick', data: d.kline, itemStyle: { color: upColor, color0: downColor, borderColor: upColor, borderColor0: downColor } },
+            { name: 'MA5', type: 'line', data: d.ma.ma5, smooth: true, symbol: 'none', itemStyle: { color: '#9c27b0' }, lineStyle: { width: 1.5, color: '#9c27b0' } },
+            { name: 'MA20', type: 'line', data: d.ma.ma20, smooth: true, symbol: 'none', itemStyle: { color: '#3370ff' }, lineStyle: { width: 1.5, color: '#3370ff' } },
+            { name: 'MA60', type: 'line', data: d.ma.ma60, smooth: true, symbol: 'none', itemStyle: { color: '#ff9800' }, lineStyle: { width: 1.5, color: '#ff9800' } },
+            { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: volData, barWidth: '60%' }
+        ]
+    });
+}
+
+function renderBoll(d) {
+    if (chartBoll) chartBoll.dispose();
+    chartBoll = echarts.init(document.getElementById('chartBoll'));
+
+    const upColor = '#e63946', downColor = '#16a34a';
+    const volData = d.vol.map((v, i) => ({
+        value: v,
+        itemStyle: { color: d.pct[i] >= 0 ? upColor : downColor }
+    }));
+
+    chartBoll.setOption({
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross' },
+            formatter: function(p) {
+                const i = p[0].dataIndex;
+                return `<b>${d.dates[i]}</b><br/>
+                    开盘：${fmtP(d.kline[i][0])}<br/>
+                    收盘：<span style="color:${d.pct[i]>=0?upColor:downColor};font-weight:600">${fmtP(d.kline[i][1])}</span><br/>
+                    最低：${fmtP(d.kline[i][2])}<br/>
+                    最高：${fmtP(d.kline[i][3])}<br/>
+                    涨跌幅：${fmtPct(d.pct[i])}<br/>
+                    成交量：${(d.vol[i]/10000).toFixed(2)}万手<br/>
+                    中轨: ${d.boll.mid[i]!==null?d.boll.mid[i].toFixed(2):'-'}<br/>
+                    上轨: ${d.boll.upper[i]!==null?d.boll.upper[i].toFixed(2):'-'}<br/>
+                    下轨: ${d.boll.lower[i]!==null?d.boll.lower[i].toFixed(2):'-'}<br/>
+                    带宽: ${d.boll.upper[i]!==null&&d.boll.mid[i]!==null?((d.boll.upper[i]-d.boll.lower[i])/d.boll.mid[i]*100).toFixed(2)+'%':'-'}`;
+            }
+        },
+        legend: { data: ['K线', '布林上轨', '布林中轨', '布林下轨'], top: 0 },
+        grid: [{ left: '8%', right: '4%', top: '12%', height: '56%' },
+               { left: '8%', right: '4%', top: '74%', height: '18%' }],
+        xAxis: [
+            { type: 'category', data: d.dates, scale: true, boundaryGap: false, axisLine: { lineStyle: { color: '#e6e8eb' } }, axisLabel: { show: false }, splitLine: { show: false }, min: 'dataMin', max: 'dataMax' },
+            { type: 'category', gridIndex: 1, data: d.dates, scale: true, boundaryGap: false, axisLine: { lineStyle: { color: '#e6e8eb' } }, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, splitLine: { show: false }, min: 'dataMin', max: 'dataMax' }
+        ],
+        yAxis: [
+            { scale: true, splitArea: { show: false }, axisLabel: { formatter: '¥{value}', color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+            { scale: true, gridIndex: 1, splitNumber: 2, axisLabel: { show: false }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false } }
+        ],
+        dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100 }, { type: 'slider', xAxisIndex: [0, 1], start: 0, end: 100, height: 18, bottom: 10, borderColor: '#c9cdd4', fillerColor: 'rgba(51,112,255,0.1)' }],
+        series: [
+            { name: 'K线', type: 'candlestick', data: d.kline, itemStyle: { color: upColor, color0: downColor, borderColor: upColor, borderColor0: downColor } },
+            { name: '布林上轨', type: 'line', data: d.boll.upper, smooth: true, symbol: 'none', itemStyle: { color: '#f59e0b' }, lineStyle: { width: 1.5, color: '#f59e0b', type: 'dashed' } },
+            { name: '布林中轨', type: 'line', data: d.boll.mid, smooth: true, symbol: 'none', itemStyle: { color: '#0ea5e9' }, lineStyle: { width: 1.5, color: '#0ea5e9' } },
+            { name: '布林下轨', type: 'line', data: d.boll.lower, smooth: true, symbol: 'none', itemStyle: { color: '#f59e0b' }, lineStyle: { width: 1.5, color: '#f59e0b', type: 'dashed' } },
+            { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: volData, barWidth: '60%' }
+        ]
+    });
+}
+
+function renderRSI(d) {
+    if (chartRSI) chartRSI.dispose();
+    chartRSI = echarts.init(document.getElementById('chartRSI'));
+    chartRSI.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['RSI' + d.rsi.period], top: 0 },
+        grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
+        xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+        dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 18, bottom: 2, borderColor: '#c9cdd4', fillerColor: 'rgba(51,112,255,0.1)' }],
+        series: [{
+            name: 'RSI' + d.rsi.period, type: 'line', data: d.rsi.values, smooth: true, symbol: 'none',
+            itemStyle: { color: '#9c27b0' },
+            lineStyle: { width: 2, color: '#9c27b0' },
+            areaStyle: { color: 'rgba(156,39,176,0.1)' },
+            markLine: { data: [
+                { yAxis: 70, lineStyle: { color: '#e63946', type: 'dashed' }, label: { formatter: '超买 70' } },
+                { yAxis: 30, lineStyle: { color: '#16a34a', type: 'dashed' }, label: { formatter: '超卖 30' } }
+            ]}
+        }]
+    });
+}
+
+function renderMACD(d) {
+    if (chartMACD) chartMACD.dispose();
+    chartMACD = echarts.init(document.getElementById('chartMACD'));
+    chartMACD.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['DIF', 'DEA', 'MACD'], top: 0 },
+        grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
+        xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
+        yAxis: { type: 'value', scale: true, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+        dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 18, bottom: 2, borderColor: '#c9cdd4', fillerColor: 'rgba(51,112,255,0.1)' }],
+        series: [
+            { name: 'DIF', type: 'line', data: d.macd.dif, smooth: true, symbol: 'none', itemStyle: { color: '#3370ff' }, lineStyle: { width: 2, color: '#3370ff' } },
+            { name: 'DEA', type: 'line', data: d.macd.dea, smooth: true, symbol: 'none', itemStyle: { color: '#ff9800' }, lineStyle: { width: 2, color: '#ff9800' } },
+            { name: 'MACD', type: 'bar', data: d.macd.hist.map(v => v === null ? null : (v >= 0 ? { value: v, itemStyle: { color: '#e63946' } } : { value: v, itemStyle: { color: '#16a34a' } })) }
+        ]
+    });
+}
+
+function renderKDJ(d) {
+    if (chartKDJ) chartKDJ.dispose();
+    chartKDJ = echarts.init(document.getElementById('chartKDJ'));
+    chartKDJ.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['K', 'D', 'J'], top: 0 },
+        grid: { left: '8%', right: '4%', top: '12%', bottom: '12%' },
+        xAxis: { type: 'category', data: d.dates, axisLabel: { fontSize: 10, interval: Math.floor(d.dates.length/10) }, axisLine: { lineStyle: { color: '#e6e8eb' } } },
+        yAxis: { type: 'value', scale: true, axisLabel: { color: '#4e5969' }, splitLine: { lineStyle: { color: '#f0f1f3' } } },
+        dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', start: 0, end: 100, height: 18, bottom: 2, borderColor: '#c9cdd4', fillerColor: 'rgba(51,112,255,0.1)' }],
+        series: [
+            { name: 'K', type: 'line', data: d.kdj.k, smooth: true, symbol: 'none', itemStyle: { color: '#3370ff' }, lineStyle: { width: 2, color: '#3370ff' } },
+            { name: 'D', type: 'line', data: d.kdj.d, smooth: true, symbol: 'none', itemStyle: { color: '#ff9800' }, lineStyle: { width: 2, color: '#ff9800' } },
+            { name: 'J', type: 'line', data: d.kdj.j, smooth: true, symbol: 'none', itemStyle: { color: '#9c27b0' }, lineStyle: { width: 2, color: '#9c27b0' } }
+        ]
+    });
+}
+
+function renderTable(d) {
+    const rows = d.dates.map((date, i) => {
+        const k = d.kline[i];
+        const pct = d.pct[i] || 0;
+        const cls = pct >= 0 ? 'up' : 'down';
+        return `<tr>
+            <td>${date}</td>
+            <td>${k[0].toFixed(2)}</td>
+            <td class="${cls}">${k[1].toFixed(2)}</td>
+            <td>${k[2].toFixed(2)}</td>
+            <td>${k[3].toFixed(2)}</td>
+            <td class="${cls}">${fmtPct(pct)}</td>
+            <td>${(d.vol[i]/10000).toFixed(2)}</td>
+            <td>${d.rsi.values[i] !== null ? d.rsi.values[i].toFixed(2) : '-'}</td>
+            <td>${d.boll.upper[i] !== null ? d.boll.upper[i].toFixed(2) : '-'}</td>
+            <td>${d.boll.lower[i] !== null ? d.boll.lower[i].toFixed(2) : '-'}</td>
+            <td>${d.macd.dif[i] !== null ? d.macd.dif[i].toFixed(4) : '-'}</td>
+            <td>${d.macd.dea[i] !== null ? d.macd.dea[i].toFixed(4) : '-'}</td>
+            <td>${d.kdj.k[i] !== null ? d.kdj.k[i].toFixed(2) : '-'}</td>
+            <td>${d.kdj.d[i] !== null ? d.kdj.d[i].toFixed(2) : '-'}</td>
+            <td>${d.kdj.j[i] !== null ? d.kdj.j[i].toFixed(2) : '-'}</td>
+        </tr>`;
+    }).reverse().join('');
+    document.getElementById('dataTableWrap').innerHTML = `<table><thead><tr>
+        <th>日期</th><th>开盘</th><th>收盘</th><th>最低</th><th>最高</th><th>涨跌幅</th><th>成交量(万手)</th>
+        <th>RSI</th><th>布林上轨</th><th>布林下轨</th><th>DIF</th><th>DEA</th><th>K</th><th>D</th><th>J</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    document.getElementById('tableMeta').textContent = `共 ${d.dates.length} 条数据 · 复权方式：${{none:'不复权',qfq:'前复权',hfq:'后复权'}[d.adjType]}`;
+}
+
+// ===== 初始化 =====
+initDates();
+fetchData();
+</script>
+</body>
+</html>

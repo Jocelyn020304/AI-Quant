@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task 3 双均线策略看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;background:#f4f5f7;color:#1f2329;}
+
+.header{background:#fff;color:#1f2329;padding:14px 24px;border-bottom:1px solid #e6e8eb;display:flex;align-items:center;gap:14px}
+.header .logo{width:28px;height:28px;background:#e63946;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+.header h1{font-size:18px;font-weight:600;color:#1f2329;margin:0;letter-spacing:.3px}
+.header .sep{color:#c9cdd4;font-size:14px}
+.header .stock-info{font-size:13px;color:#4e5969;display:flex;align-items:center;gap:10px}
+.header .stock-info .code{color:#1f2329;font-weight:600}
+.header .stock-info .date{color:#86909c;font-size:12px}
+
+.container{max-width:1400px;margin:0 auto;padding:16px 20px}
+
+.controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:end}
+.controls .field{display:flex;flex-direction:column;gap:5px;position:relative}
+.controls .field label{font-size:12px;font-weight:500;color:#4e5969}
+.controls .field input,
+.controls .field select{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s}
+.controls .field input:focus,
+.controls .field select:focus{border-color:#3370ff}
+.controls .field.col-2{grid-column:span 2}
+.controls .field.col-3{grid-column:span 3}
+.controls .field.col-4{grid-column:span 4}
+.controls .field.col-1{grid-column:span 1}
+.controls .field .suggest-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e8eb;border-radius:4px;max-height:260px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-top:2px}
+.controls .field .suggest-box.active{display:block}
+.controls .field .suggest-item{padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f1f3;display:flex;justify-content:space-between;align-items:center}
+.controls .field .suggest-item:hover{background:#f2f4f7}
+.controls .field .suggest-item .scode{color:#1f2329;font-weight:600;font-size:12px}
+.controls .field .suggest-item .sname{color:#4e5969}
+.controls .field .suggest-item .smarket{font-size:11px;color:#86909c}
+.controls button{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;padding:0 16px}
+.controls .btn-primary{background:#3370ff;color:#fff}
+.controls .btn-primary:hover{background:#1d5ce0}
+.controls .preset-group{display:flex;gap:6px;flex-wrap:wrap}
+.controls .preset-btn{padding:5px 10px;border:1px solid #c9cdd4;background:#fff;border-radius:3px;font-size:12px;color:#4e5969;cursor:pointer;transition:all .15s;height:32px}
+.controls .preset-btn:hover{border-color:#3370ff;color:#3370ff}
+.controls .preset-btn.active{background:#e8f0ff;border-color:#3370ff;color:#3370ff}
+
+.error-msg{background:#fff2f0;border:1px solid #ffccc7;border-radius:4px;padding:10px 16px;color:#cf1322;margin-bottom:12px;display:none;font-size:13px}
+.error-msg.active{display:block}
+.loading{text-align:center;padding:50px;color:#86909c;font-size:14px;display:none}
+.loading.active{display:block}
+.loading .spinner{display:inline-block;width:28px;height:28px;border:2px solid #e6e8eb;border-top-color:#3370ff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.stats{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#e6e8eb;border:1px solid #e6e8eb;border-radius:6px;margin-bottom:14px;overflow:hidden}
+.stat-card{background:#fff;padding:14px 12px;text-align:left}
+.stat-card .l{font-size:12px;color:#86909c;margin-bottom:4px}
+.stat-card .v{font-size:18px;font-weight:600;color:#1f2329;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.stat-card .v.up{color:#e63946}
+.stat-card .v.down{color:#16a34a}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid #e6e8eb;margin-bottom:14px;background:#fff;border-radius:6px 6px 0 0;padding:0 12px}
+.tab-btn{padding:11px 18px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:#4e5969;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab-btn.active{color:#3370ff;border-bottom-color:#3370ff}
+.tab-btn:hover{color:#3370ff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.chart-card{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 16px;margin-bottom:14px}
+.chart-card .ctitle{font-size:14px;font-weight:600;color:#1f2329;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.chart-card .ctitle::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+#chartMain{width:100%;height:480px}
+#chartEquity{width:100%;height:320px}
+#chartDrawdown{width:100%;height:260px}
+#chartParamCompare{width:100%;height:420px}
+#chartStockCompare{width:100%;height:420px}
+
+.data-table{background:#fff;border:1px solid #e6e8eb;border-radius:6px;overflow:hidden;margin-bottom:14px}
+.data-table .table-header{padding:12px 16px;border-bottom:1px solid #e6e8eb;display:flex;justify-content:space-between;align-items:center}
+.data-table .table-title{font-size:14px;font-weight:600;color:#1f2329;display:flex;align-items:center;gap:6px}
+.data-table .table-title::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+.data-table .table-meta{font-size:12px;color:#86909c}
+.data-table .table-wrap{max-height:480px;overflow-y:auto}
+.data-table .table-wrap::-webkit-scrollbar{width:8px;height:8px}
+.data-table .table-wrap::-webkit-scrollbar-thumb{background:#c9cdd4;border-radius:4px}
+.data-table .table-wrap::-webkit-scrollbar-track{background:#f0f1f3}
+.data-table table{width:100%;border-collapse:collapse;font-size:12px;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.data-table thead{position:sticky;top:0;background:#f7f8fa;z-index:1}
+.data-table th{padding:10px 12px;text-align:center;font-weight:500;color:#4e5969;border-bottom:1px solid #e6e8eb;white-space:nowrap;font-size:12px}
+.data-table td{padding:9px 12px;text-align:center;border-bottom:1px solid #f0f1f3;white-space:nowrap;color:#1f2329}
+.data-table tr:hover{background:#fafbfc}
+.data-table .up{color:#e63946}
+.data-table .down{color:#16a34a}
+.data-table .best{background:#fff7e6;font-weight:600}
+
+.compare-controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px}
+.compare-controls .row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.compare-controls .row:last-child{margin-bottom:0}
+.compare-controls .field{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.compare-controls .field label{font-size:12px;font-weight:500;color:#4e5969}
+.compare-controls .field input{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;height:32px}
+.compare-controls .field input:focus{border-color:#3370ff}
+.compare-controls .btn-primary{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;background:#3370ff;color:#fff;padding:0 16px}
+.compare-controls .btn-primary:hover{background:#1d5ce0}
+.compare-controls .hint{font-size:12px;color:#86909c}
+
+@media (max-width:900px){
+  .controls{grid-template-columns:repeat(6,1fr)}
+  .controls .field.col-2,.controls .field.col-3,.controls .field.col-4,.controls .field.col-1{grid-column:span 6}
+  .stats{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">MA</div>
+    <h1>双均线策略看板</h1>
+    <span class="sep">|</span>
+    <div class="stock-info">
+        <span class="code" id="headerCode">688256.SH</span>
+        <span class="date" id="headerDate">--</span>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="controls">
+        <div class="field col-3">
+            <label>股票代码 / 名称</label>
+            <input id="stockInput" value="688256.SH" placeholder="例: 寒武纪 / 600519 / 00700" autocomplete="off">
+            <div class="suggest-box" id="suggestBox"></div>
+        </div>
+        <div class="field col-1">
+            <label>短均线</label>
+            <input type="number" id="shortWin" value="5" min="1" max="120">
+        </div>
+        <div class="field col-1">
+            <label>长均线</label>
+            <input type="number" id="longWin" value="15" min="1" max="250">
+        </div>
+        <div class="field col-2">
+            <label>开始日期</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="field col-2">
+            <label>结束日期</label>
+            <input type="date" id="endDate">
+        </div>
+        <div class="field col-2">
+            <label>复权方式</label>
+            <select id="adjType">
+                <option value="qfq" selected>前复权</option>
+                <option value="hfq">后复权</option>
+                <option value="none">不复权</option>
+            </select>
+        </div>
+        <div class="field col-1">
+            <label>无风险利率</label>
+            <input type="number" id="riskFree" value="2" step="0.1" min="0" max="20">
+        </div>
+        <div class="field col-2">
+            <label>快捷范围</label>
+            <div class="preset-group">
+                <button type="button" class="preset-btn" data-range="1m">近1月</button>
+                <button type="button" class="preset-btn" data-range="3m">近3月</button>
+                <button type="button" class="preset-btn" data-range="6m">近6月</button>
+                <button type="button" class="preset-btn active" data-range="1y">近1年</button>
+                <button type="button" class="preset-btn" data-range="2y">近2年</button>
+                <button type="button" class="preset-btn" data-range="all">全部</button>
+            </div>
+        </div>
+        <div class="field col-1">
+            <label>&nbsp;</label>
+            <button class="btn-primary" onclick="runBacktest()" style="width:100%;">查询</button>
+        </div>
+    </div>
+
+    <div class="error-msg" id="errorBox"></div>
+    <div class="loading" id="loading"><div class="spinner"></div>正在获取数据并计算...</div>
+
+    <div id="content" style="display:none">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="backtest">策略回测</button>
+            <button class="tab-btn" data-tab="params">参数对比</button>
+            <button class="tab-btn" data-tab="stocks">股票对比</button>
+        </div>
+
+        <div class="tab-content active" id="tab-backtest">
+            <div class="stats" id="backtestStats"></div>
+
+            <div class="chart-card">
+                <div class="ctitle">股价走势与双均线交易信号</div>
+                <div id="chartMain"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="ctitle">策略净值曲线</div>
+                <div id="chartEquity"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="ctitle">策略回撤曲线</div>
+                <div id="chartDrawdown"></div>
+            </div>
+
+            <div class="data-table">
+                <div class="table-header">
+                    <div class="table-title">交易信号记录</div>
+                    <div class="table-meta" id="signalMeta">--</div>
+                </div>
+                <div class="table-wrap" id="signalTableWrap"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-params">
+            <div class="compare-controls">
+                <div class="row">
+                    <div class="field" style="flex:1">
+                        <label>参数组合（用逗号分隔，格式：短/长）</label>
+                        <input id="paramSetInput" value="5/15,10/30,20/60,5/20,10/20,10/60">
+                    </div>
+                    <button class="btn-primary" onclick="runParamCompare()">开始参数对比</button>
+                </div>
+                <div class="row">
+                    <div class="hint">预设参数组合覆盖短/中/长期不同周期，夏普比率最高者将高亮显示。</div>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <div class="table-header">
+                    <div class="table-title">不同均线参数回测对比</div>
+                    <div class="table-meta" id="paramTableMeta">--</div>
+                </div>
+                <div class="table-wrap" id="paramTableWrap"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="ctitle">多参数策略净值对比</div>
+                <div id="chartParamCompare"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-stocks">
+            <div class="compare-controls">
+                <div class="row">
+                    <div class="field" style="flex:1">
+                        <label>对比股票（用逗号分隔代码或名称）</label>
+                        <input id="stockCompareInput" value="688256.SH,300750.SZ,600519.SH">
+                    </div>
+                    <div class="field col-1">
+                        <label>短均线</label>
+                        <input type="number" id="stockShortWin" value="10" min="1" max="120">
+                    </div>
+                    <div class="field col-1">
+                        <label>长均线</label>
+                        <input type="number" id="stockLongWin" value="30" min="1" max="250">
+                    </div>
+                    <button class="btn-primary" onclick="runStockCompare()">开始股票对比</button>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <div class="table-header">
+                    <div class="table-title">多股票相同参数回测对比</div>
+                    <div class="table-meta" id="stockTableMeta">--</div>
+                </div>
+                <div class="table-wrap" id="stockTableWrap"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="ctitle">多股票策略净值对比</div>
+                <div id="chartStockCompare"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const fmtD = d => d.substring(0,4)+'-'+d.substring(4,6)+'-'+d.substring(6,8);
+const fmtP = v => '¥' + v.toFixed(2);
+const fmtPct = v => (v>=0?'+':'') + v.toFixed(2) + '%';
+
+let searchTimer = null;
+let selectedTsCode = '';
+let currentData = null;
+let chartMain, chartEquity, chartDrawdown, chartParamCompare, chartStockCompare;
+
+// ===== 搜索建议 =====
+document.getElementById('stockInput').addEventListener('input', function(e){
+    clearTimeout(searchTimer);
+    const val = e.target.value.trim();
+    if(val.length < 1){document.getElementById('suggestBox').classList.remove('active');return}
+    searchTimer = setTimeout(()=>doSearch(val), 250);
+});
+
+document.addEventListener('click', function(e){
+    if(!document.getElementById('stockInput').contains(e.target)){
+        document.getElementById('suggestBox').classList.remove('active');
+    }
+});
+
+async function doSearch(keyword){
+    const box = document.getElementById('suggestBox');
+    try{
+        const resp = await fetch('/api/search?q=' + encodeURIComponent(keyword));
+        const data = await resp.json();
+        if(!data.stocks || data.stocks.length === 0){box.classList.remove('active');return}
+        box.innerHTML = data.stocks.map(s =>
+            `<div class="suggest-item" onclick="selectStock('${s.tsCode}', '${s.name}')">
+                <span><span class="sname">${s.name}</span> <span class="scode">${s.code}</span></span>
+                <span class="smarket">${s.market || ''}</span>
+            </div>`
+        ).join('');
+        box.classList.add('active');
+    }catch(e){box.classList.remove('active');}
+}
+
+function selectStock(tsCode, name){
+    selectedTsCode = tsCode;
+    document.getElementById('stockInput').value = name + ' (' + tsCode + ')';
+    document.getElementById('suggestBox').classList.remove('active');
+    runBacktest();
+}
+
+// ===== 日期快捷范围 =====
+function initDates(){
+    const end = new Date();
+    const start = new Date();
+    start.setFullYear(start.getFullYear() - 1);
+    document.getElementById('endDate').value = formatDateInput(end);
+    document.getElementById('startDate').value = formatDateInput(start);
+}
+
+function formatDateInput(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function applyPreset(range){
+    const end = new Date();
+    const start = new Date();
+    if(range === '1m') start.setMonth(start.getMonth()-1);
+    else if(range === '3m') start.setMonth(start.getMonth()-3);
+    else if(range === '6m') start.setMonth(start.getMonth()-6);
+    else if(range === '1y') start.setFullYear(start.getFullYear()-1);
+    else if(range === '2y') start.setFullYear(start.getFullYear()-2);
+    else if(range === 'all'){start.setFullYear(1990);start.setMonth(0);start.setDate(1);}
+    document.getElementById('endDate').value = formatDateInput(end);
+    document.getElementById('startDate').value = formatDateInput(start);
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`.preset-btn[data-range="${range}"]`).classList.add('active');
+    runBacktest();
+}
+
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>applyPreset(btn.dataset.range));
+});
+
+// ===== Tab 切换 =====
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        setTimeout(()=>window.dispatchEvent(new Event('resize')), 50);
+    });
+});
+
+function showError(msg){
+    document.getElementById('loading').classList.remove('active');
+    const box = document.getElementById('errorBox');
+    box.textContent = msg;
+    box.classList.add('active');
+}
+function hideError(){document.getElementById('errorBox').classList.remove('active');}
+
+function getCodeInput(){
+    let raw = document.getElementById('stockInput').value.trim();
+    if(selectedTsCode) return selectedTsCode;
+    const m = raw.match(/(\d{6})/);
+    if(m) return m[1];
+    return raw;
+}
+
+// ===== 主回测 =====
+async function runBacktest(){
+    const code = getCodeInput();
+    if(!code){showError('请输入股票名称或代码');return}
+
+    const shortWin = parseInt(document.getElementById('shortWin').value) || 5;
+    const longWin = parseInt(document.getElementById('longWin').value) || 15;
+    if(shortWin >= longWin){showError('短期均线周期必须小于长期均线周期');return}
+
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    if(start && end && start > end){showError('开始日期不能晚于结束日期');return}
+
+    hideError();
+    document.getElementById('content').style.display = 'none';
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('headerCode').textContent = code;
+    document.getElementById('headerDate').textContent = '加载中...';
+
+    try{
+        const url = `/api/backtest?tscode=${encodeURIComponent(code)}` +
+            `&short_win=${shortWin}&long_win=${longWin}` +
+            `&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}` +
+            `&adj=${document.getElementById('adjType').value}` +
+            `&risk_free=${parseFloat(document.getElementById('riskFree').value)/100}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if(data.error){showError(data.error);return}
+        currentData = data;
+        selectedTsCode = '';
+        renderBacktest(data);
+        document.getElementById('content').style.display = 'block';
+    }catch(e){showError('请求失败: ' + e.message);}
+    document.getElementById('loading').classList.remove('active');
+}
+
+function renderBacktest(d){
+    document.getElementById('headerCode').textContent = d.tsCode;
+    document.getElementById('headerDate').textContent = `${d.stats.start} ~ ${d.stats.end}`;
+
+    const m = d.metrics;
+    const s = d.stats;
+    document.getElementById('backtestStats').innerHTML = [
+        {l:'参数', v:`MA${d.shortWin}/${d.longWin}`},
+        {l:'累计回报', v:fmtPct(m.cum_return), c:m.cum_return>=0?'up':'down'},
+        {l:'最大回撤', v:fmtPct(m.mdd), c:'down'},
+        {l:'年化收益', v:fmtPct(m.ann_return), c:m.ann_return>=0?'up':'down'},
+        {l:'年化波动', v:m.ann_vol.toFixed(2)+'%'},
+        {l:'夏普比率', v:m.sharpe.toFixed(4)},
+        {l:'交易次数', v:m.n_trade + '次'},
+        {l:'最新收盘', v:fmtP(s.lastClose)},
+    ].map(x=>`<div class="stat-card"><div class="l">${x.l}</div><div class="v ${x.c||''}">${x.v}</div></div>`).join('');
+
+    const dates = d.dates;
+    const buyIdx = d.signal.map((v,i)=>v===1?i:-1).filter(i=>i>=0);
+    const sellIdx = d.signal.map((v,i)=>v===-1?i:-1).filter(i=>i>=0);
+    const buyData = buyIdx.map(i=>[dates[i], d.kline[i][3]]);
+    const sellData = sellIdx.map(i=>[dates[i], d.kline[i][2]]);
+
+    // 主图：K线 + 双均线 + 买卖信号
+    if(chartMain) chartMain.dispose();
+    chartMain = echarts.init(document.getElementById('chartMain'));
+    chartMain.setOption({
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'},
+            formatter:function(p){
+                const i = p[0].dataIndex;
+                const pct = i>0 ? (d.kline[i][1]-d.kline[i-1][1])/d.kline[i-1][1]*100 : 0;
+                return `<b>${dates[i]}</b><br/>开盘：${fmtP(d.kline[i][0])}<br/>收盘：<span style="color:${pct>=0?'#e63946':'#16a34a'};font-weight:600">${fmtP(d.kline[i][1])}</span><br/>最低：${fmtP(d.kline[i][2])}<br/>最高：${fmtP(d.kline[i][3])}<br/>MA${d.shortWin}：${d.maShort[i]!==null?d.maShort[i].toFixed(2):'-'}<br/>MA${d.longWin}：${d.maLong[i]!==null?d.maLong[i].toFixed(2):'-'}<br/>信号：${d.signal[i]===1?'买入':(d.signal[i]===-1?'卖出':'无')}`;
+            }},
+        legend:{data:['K线',`MA${d.shortWin}`,`MA${d.longWin}`,'买入','卖出'],top:0},
+        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:[
+            {name:'K线',type:'candlestick',data:d.kline,itemStyle:{color:'#e63946',color0:'#16a34a',borderColor:'#e63946',borderColor0:'#16a34a'}},
+            {name:`MA${d.shortWin}`,type:'line',data:d.maShort,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#d62728'}},
+            {name:`MA${d.longWin}`,type:'line',data:d.maLong,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#1f77b4'}},
+            {name:'买入',type:'scatter',data:buyData,symbol:'triangle',symbolSize:12,itemStyle:{color:'#e63946'},z:10},
+            {name:'卖出',type:'scatter',data:sellData,symbol:'triangle',symbolSize:12,itemStyle:{color:'#16a34a'},symbolRotate:180,z:10}
+        ]
+    });
+
+    // 净值曲线
+    if(chartEquity) chartEquity.dispose();
+    chartEquity = echarts.init(document.getElementById('chartEquity'));
+    chartEquity.setOption({
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return `<b>${dates[i]}</b><br/>净值：${d.equity[i].toFixed(4)}`;}},
+        grid:{left:'8%',right:'4%',top:'10%',bottom:'10%'},
+        xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:[{
+            name:'策略净值',type:'line',data:d.equity,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#d62728'},
+            markLine:{silent:true,data:[{yAxis:1,lineStyle:{color:'#999',type:'dashed'}}]}
+        }]
+    });
+
+    // 回撤曲线
+    if(chartDrawdown) chartDrawdown.dispose();
+    chartDrawdown = echarts.init(document.getElementById('chartDrawdown'));
+    chartDrawdown.setOption({
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return `<b>${dates[i]}</b><br/>回撤：${(d.drawdown[i]*100).toFixed(2)}%`;}},
+        grid:{left:'8%',right:'4%',top:'10%',bottom:'10%'},
+        xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{formatter:'{value}%',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:[{
+            name:'回撤',type:'line',data:d.drawdown.map(v=>v*100),smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#16a34a'},
+            areaStyle:{color:'rgba(22,163,74,0.2)'}
+        }]
+    });
+
+    // 交易信号表
+    const signalRows = [];
+    let lastSignalDate = '';
+    d.signal.forEach((sig, i)=>{
+        if(sig !== 0){
+            const price = d.kline[i][1];
+            signalRows.push({date:dates[i], type:sig===1?'买入（金叉）':'卖出（死叉）', price:price, sig:sig});
+        }
+    });
+    const rowsHtml = signalRows.map(r=>{
+        const cls = r.sig===1?'up':'down';
+        return `<tr><td>${r.date}</td><td class="${cls}">${r.type}</td><td>${r.price.toFixed(2)}</td></tr>`;
+    }).join('');
+    document.getElementById('signalTableWrap').innerHTML = `<table><thead><tr><th>日期</th><th>信号</th><th>成交价</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    document.getElementById('signalMeta').textContent = `共 ${signalRows.length} 条信号 · 买入 ${d.metrics.n_buy} 次 · 卖出 ${d.metrics.n_sell} 次`;
+
+    window.addEventListener('resize',()=>{chartMain&&chartMain.resize();chartEquity&&chartEquity.resize();chartDrawdown&&chartDrawdown.resize();});
+}
+
+// ===== 参数对比 =====
+async function runParamCompare(){
+    if(!currentData){showError('请先执行主回测查询');return}
+    const code = currentData.tsCode;
+    const params = document.getElementById('paramSetInput').value;
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+
+    document.getElementById('paramTableWrap').innerHTML = '<div style="padding:20px;text-align:center;color:#86909c">计算中...</div>';
+    try{
+        const url = `/api/compare_params?tscode=${encodeURIComponent(code)}` +
+            `&params=${encodeURIComponent(params)}` +
+            `&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}` +
+            `&adj=${document.getElementById('adjType').value}` +
+            `&risk_free=${parseFloat(document.getElementById('riskFree').value)/100}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if(data.error){showError(data.error);return}
+        renderParamCompare(data);
+    }catch(e){showError('参数对比请求失败: '+e.message);}
+}
+
+function renderParamCompare(data){
+    const results = data.results;
+    const bestIdx = results.reduce((best, cur, i)=>cur.sharpe>results[best].sharpe?i:best, 0);
+
+    const rows = results.map((r,i)=>{
+        const isBest = i===bestIdx;
+        return `<tr class="${isBest?'best':''}">
+            <td>${r.param}${isBest?' 🏆':''}</td>
+            <td class="${r.cumReturn>=0?'up':'down'}">${fmtPct(r.cumReturn)}</td>
+            <td class="down">${fmtPct(r.mdd)}</td>
+            <td class="${r.annReturn>=0?'up':'down'}">${fmtPct(r.annReturn)}</td>
+            <td>${r.annVol.toFixed(2)}%</td>
+            <td>${r.sharpe.toFixed(4)}</td>
+            <td>${r.nTrade}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('paramTableWrap').innerHTML = `<table><thead><tr><th>参数</th><th>累计回报</th><th>最大回撤</th><th>年化收益</th><th>年化波动</th><th>夏普比率</th><th>交易次数</th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.getElementById('paramTableMeta').textContent = `最优参数：${results[bestIdx].param}（夏普 ${results[bestIdx].sharpe.toFixed(4)}）`;
+
+    // 净值对比图
+    if(chartParamCompare) chartParamCompare.dispose();
+    chartParamCompare = echarts.init(document.getElementById('chartParamCompare'));
+    const colors = ['#d62728','#1f77b4','#2ca02c','#ff7f0e','#9467bd','#8c564b','#e377c2','#7f7f7f'];
+    chartParamCompare.setOption({
+        tooltip:{trigger:'axis'},
+        legend:{data:results.map(r=>r.param),top:0},
+        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        xAxis:{type:'category',data:data.dates,axisLabel:{fontSize:10,interval:Math.floor(data.dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:results.map((r,i)=>({
+            name:r.param,type:'line',data:r.equity,smooth:false,symbol:'none',lineStyle:{width:1.5,color:colors[i%colors.length]}
+        })).concat([{
+            name:'基准净值',type:'line',data:data.dates.map(()=>1),lineStyle:{color:'#999',type:'dashed',width:1},silent:true,symbol:'none'
+        }])
+    });
+
+    window.addEventListener('resize',()=>chartParamCompare&&chartParamCompare.resize());
+}
+
+// ===== 股票对比 =====
+async function runStockCompare(){
+    const stocks = document.getElementById('stockCompareInput').value;
+    if(!stocks){showError('请输入对比股票');return}
+    const shortWin = parseInt(document.getElementById('stockShortWin').value) || 10;
+    const longWin = parseInt(document.getElementById('stockLongWin').value) || 30;
+    if(shortWin >= longWin){showError('短期均线周期必须小于长期均线周期');return}
+
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+
+    document.getElementById('stockTableWrap').innerHTML = '<div style="padding:20px;text-align:center;color:#86909c">计算中...</div>';
+    try{
+        const url = `/api/compare_stocks?tscodes=${encodeURIComponent(stocks)}` +
+            `&short_win=${shortWin}&long_win=${longWin}` +
+            `&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}` +
+            `&adj=${document.getElementById('adjType').value}` +
+            `&risk_free=${parseFloat(document.getElementById('riskFree').value)/100}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if(data.error){showError(data.error);return}
+        renderStockCompare(data);
+    }catch(e){showError('股票对比请求失败: '+e.message);}
+}
+
+function renderStockCompare(data){
+    const results = data.results.filter(r=>!r.error);
+    const validResults = results;
+    const bestIdx = validResults.length>0 ? validResults.reduce((best,cur,i)=>cur.sharpe>validResults[best].sharpe?i:best,0) : -1;
+
+    const rows = data.results.map((r,i)=>{
+        if(r.error) return `<tr><td>${r.tsCode}</td><td colspan="6" style="color:#cf1322">${r.error}</td></tr>`;
+        const isBest = i===bestIdx;
+        return `<tr class="${isBest?'best':''}">
+            <td>${r.tsCode}${isBest?' 🏆':''}</td>
+            <td class="${r.cumReturn>=0?'up':'down'}">${fmtPct(r.cumReturn)}</td>
+            <td class="down">${fmtPct(r.mdd)}</td>
+            <td class="${r.annReturn>=0?'up':'down'}">${fmtPct(r.annReturn)}</td>
+            <td>${r.annVol.toFixed(2)}%</td>
+            <td>${r.sharpe.toFixed(4)}</td>
+            <td>${r.nTrade}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('stockTableWrap').innerHTML = `<table><thead><tr><th>股票</th><th>累计回报</th><th>最大回撤</th><th>年化收益</th><th>年化波动</th><th>夏普比率</th><th>交易次数</th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.getElementById('stockTableMeta').textContent = `参数：${data.param} · 共 ${validResults.length} 只有效股票`;
+
+    if(chartStockCompare) chartStockCompare.dispose();
+    chartStockCompare = echarts.init(document.getElementById('chartStockCompare'));
+    const colors = ['#d62728','#1f77b4','#2ca02c','#ff7f0e','#9467bd','#8c564b'];
+
+    // 对齐日期：取所有股票日期的并集
+    const allDatesSet = new Set();
+    validResults.forEach(r=>r.dates.forEach(d=>allDatesSet.add(d)));
+    const allDates = Array.from(allDatesSet).sort();
+    const dateIndexMap = new Map(allDates.map((d,i)=>[d,i]));
+
+    const series = validResults.map((r,i)=>{
+        const aligned = new Array(allDates.length).fill(null);
+        r.dates.forEach((d,idx)=>{
+            const pos = dateIndexMap.get(d);
+            if(pos!==undefined) aligned[pos] = r.equity[idx];
+        });
+        // 用前值填充缺失
+        let last = null;
+        for(let j=0;j<aligned.length;j++){
+            if(aligned[j]!==null) last = aligned[j];
+            else if(last!==null) aligned[j] = last;
+        }
+        return {name:r.tsCode,type:'line',data:aligned,smooth:false,symbol:'none',lineStyle:{width:1.5,color:colors[i%colors.length]}};
+    }).concat([{
+        name:'基准净值',type:'line',data:allDates.map(()=>1),lineStyle:{color:'#999',type:'dashed',width:1},silent:true,symbol:'none'
+    }]);
+
+    chartStockCompare.setOption({
+        tooltip:{trigger:'axis'},
+        legend:{data:[...validResults.map(r=>r.tsCode),'基准净值'],top:0},
+        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        xAxis:{type:'category',data:allDates,axisLabel:{fontSize:10,interval:Math.floor(allDates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:series
+    });
+
+    window.addEventListener('resize',()=>chartStockCompare&&chartStockCompare.resize());
+}
+
+// ===== 默认加载 =====
+initDates();
+runBacktest();
+</script>
+
+</body>
+</html>

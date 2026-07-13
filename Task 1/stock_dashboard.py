@@ -28,6 +28,19 @@ pro = ts.pro_api()
 # ===== Flask =====
 app = Flask(__name__)
 
+
+# ===== 允许跨域（让 GitHub Pages 上的 Task 2 看板也能调用本地后端） =====
+@app.after_request
+def add_cors(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+@app.route("/<path:p>", methods=["OPTIONS"])
+def cors_preflight(p):
+    return app.make_default_options_response()
+
 # ===== 股票基础信息缓存 =====
 _stock_cache = None  # list[dict], 每个 dict 包含 {code, name, market, fullCode}
 _STOCK_CACHE_TIME = 3600  # 缓存有效期 1 小时
@@ -217,6 +230,100 @@ def build_data_json(df: pd.DataFrame) -> dict:
     }
 
 
+def calc_indicators(df: pd.DataFrame, rsi_period: int = 14,
+                    macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9,
+                    bb_period: int = 20, bb_k: float = 2.0) -> dict:
+    """
+    计算 RSI / MACD / 布林带 / KDJ 四大技术指标。
+    返回前端友好的 dict。
+    """
+    close = df["close"].astype(float)
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    n = len(close)
+    dates = df["trade_date"].tolist()
+
+    # ----- 简单移动平均 (MA) -----
+    ma5 = close.rolling(5).mean().round(2)
+    ma10 = close.rolling(10).mean().round(2)
+    ma20 = close.rolling(20).mean().round(2)
+    ma60 = close.rolling(60).mean().round(2)
+
+    # ----- RSI -----
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+    avg_gain = gain.ewm(alpha=1/rsi_period, adjust=False, min_periods=rsi_period).mean()
+    avg_loss = loss.ewm(alpha=1/rsi_period, adjust=False, min_periods=rsi_period).mean()
+    rs = avg_gain / avg_loss
+    rsi = (100 - 100 / (1 + rs)).round(2)
+
+    # ----- MACD -----
+    ema_fast = close.ewm(span=macd_fast, adjust=False).mean()
+    ema_slow = close.ewm(span=macd_slow, adjust=False).mean()
+    dif = (ema_fast - ema_slow).round(4)
+    dea = dif.ewm(span=macd_signal, adjust=False).mean().round(4)
+    macd_hist = ((dif - dea) * 2).round(4)
+
+    # ----- 布林带 (BOLL) -----
+    boll_mid = close.rolling(bb_period).mean().round(2)
+    std = close.rolling(bb_period).std(ddof=0).round(2)
+    boll_upper = (boll_mid + bb_k * std).round(2)
+    boll_lower = (boll_mid - bb_k * std).round(2)
+
+    # ----- KDJ -----
+    low_n = low.rolling(9).min()
+    high_n = high.rolling(9).max()
+    rsv = ((close - low_n) / (high_n - low_n) * 100).round(2)
+    k_line = rsv.ewm(alpha=1/3, adjust=False).mean().round(2)
+    d_line = k_line.ewm(alpha=1/3, adjust=False).mean().round(2)
+    j_line = (3 * k_line - 2 * d_line).round(2)
+
+    def to_list(s, fill_nan=True):
+        """转 list，None 填 null（前端能识别）"""
+        out = []
+        for v in s.tolist():
+            if pd.isna(v):
+                out.append(None)
+            else:
+                out.append(float(v))
+        return out
+
+    return {
+        "dates": [d[:4] + "-" + d[4:6] + "-" + d[6:] for d in dates],
+        "kline": [[round(float(r["open"]), 2), round(float(r["close"]), 2),
+                   round(float(r["low"]), 2), round(float(r["high"]), 2)]
+                  for _, r in df.iterrows()],
+        "ma": {
+            "ma5": to_list(ma5),
+            "ma10": to_list(ma10),
+            "ma20": to_list(ma20),
+            "ma60": to_list(ma60),
+        },
+        "rsi": {
+            "period": rsi_period,
+            "values": to_list(rsi),
+        },
+        "macd": {
+            "fast": macd_fast, "slow": macd_slow, "signal": macd_signal,
+            "dif": to_list(dif),
+            "dea": to_list(dea),
+            "hist": to_list(macd_hist),
+        },
+        "boll": {
+            "period": bb_period, "k": bb_k,
+            "upper": to_list(boll_upper),
+            "mid": to_list(boll_mid),
+            "lower": to_list(boll_lower),
+        },
+        "kdj": {
+            "k": to_list(k_line),
+            "d": to_list(d_line),
+            "j": to_list(j_line),
+        },
+    }
+
+
 # ===== 模板 =====
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -227,119 +334,187 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;color:#333}
-.header{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:24px 20px;text-align:center}
-.header h1{font-size:22px;margin-bottom:4px}
-.header p{font-size:13px;opacity:.75}
-.search-bar{max-width:700px;margin:20px auto;background:#fff;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.search-bar .field{display:flex;flex-direction:column;gap:4px;position:relative}
-.search-bar .field label{font-size:12px;font-weight:600;color:#666}
-.search-bar .field input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:200px;outline:none}
-.search-bar .field input:focus{border-color:#302b63}
-.search-bar .field input.wide{width:260px}
-.search-bar .field .suggest-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;max-height:260px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.12)}
+body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;background:#f4f5f7;color:#1f2329;}
+
+/* 头部：同花顺风格的简洁白底 */
+.header{background:#fff;color:#1f2329;padding:14px 24px;border-bottom:1px solid #e6e8eb;display:flex;align-items:center;gap:14px}
+.header .logo{width:28px;height:28px;background:#e63946;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+.header h1{font-size:18px;font-weight:600;color:#1f2329;margin:0;letter-spacing:.3px}
+.header .sep{color:#c9cdd4;font-size:14px}
+.header .stock-info{font-size:13px;color:#4e5969;display:flex;align-items:center;gap:10px}
+.header .stock-info .code{color:#1f2329;font-weight:600}
+.header .stock-info .name{color:#4e5969}
+.header .stock-info .date{color:#86909c;font-size:12px}
+
+/* 容器：统一最大宽度 */
+.container{max-width:1280px;margin:0 auto;padding:16px 20px}
+
+/* 控制面板：等宽网格布局 */
+.search-bar{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:end}
+.search-bar .field{display:flex;flex-direction:column;gap:5px;position:relative}
+.search-bar .field label{font-size:12px;font-weight:500;color:#4e5969}
+.search-bar .field input,
+.search-bar .field select{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s}
+.search-bar .field input:focus,
+.search-bar .field select:focus{border-color:#3370ff}
+.search-bar .field.col-3{grid-column:span 3}
+.search-bar .field.col-4{grid-column:span 4}
+.search-bar .field.col-5{grid-column:span 5}
+.search-bar .field.col-12{grid-column:span 12}
+.search-bar .field .suggest-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e8eb;border-radius:4px;max-height:260px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-top:2px}
 .search-bar .field .suggest-box.active{display:block}
-.search-bar .field .suggest-item{padding:8px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f3f3f3;display:flex;justify-content:space-between;align-items:center}
-.search-bar .field .suggest-item:hover{background:#f0f4ff}
-.search-bar .field .suggest-item .scode{color:#302b63;font-weight:600;font-size:12px}
-.search-bar .field .suggest-item .sname{color:#333}
-.search-bar .field .suggest-item .smarket{font-size:11px;color:#999}
-.search-bar button{padding:8px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#302b63;color:#fff;height:36px;transition:background .2s}
-.search-bar button:hover{background:#1a1640}
-.search-bar .hint{font-size:12px;color:#999;margin-left:auto;align-self:center}
-.loading{text-align:center;padding:60px;color:#999;font-size:15px;display:none}
-.loading .spinner{display:inline-block;width:32px;height:32px;border:3px solid #e0e0e0;border-top-color:#302b63;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+.search-bar .field .suggest-item{padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f1f3;display:flex;justify-content:space-between;align-items:center}
+.search-bar .field .suggest-item:hover{background:#f2f4f7}
+.search-bar .field .suggest-item .scode{color:#1f2329;font-weight:600;font-size:12px}
+.search-bar .field .suggest-item .sname{color:#4e5969}
+.search-bar .field .suggest-item .smarket{font-size:11px;color:#86909c}
+.search-bar button{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;padding:0 16px}
+.search-bar .btn-primary{background:#3370ff;color:#fff}
+.search-bar .btn-primary:hover{background:#1d5ce0}
+.search-bar .preset-group{display:flex;gap:6px;flex-wrap:wrap}
+.search-bar .preset-btn{padding:5px 10px;border:1px solid #c9cdd4;background:#fff;border-radius:3px;font-size:12px;color:#4e5969;cursor:pointer;transition:all .15s;height:32px}
+.search-bar .preset-btn:hover{border-color:#3370ff;color:#3370ff}
+.search-bar .preset-btn.active{background:#e8f0ff;border-color:#3370ff;color:#3370ff}
+.search-bar .hint{font-size:12px;color:#86909c;align-self:center;grid-column:span 12}
+
+/* 错误/加载 */
+.error-msg{background:#fff2f0;border:1px solid #ffccc7;border-radius:4px;padding:10px 16px;color:#cf1322;margin-bottom:12px;display:none;font-size:13px}
+.error-msg.active{display:block}
+.loading{text-align:center;padding:50px;color:#86909c;font-size:14px;display:none}
+.loading.active{display:block}
+.loading .spinner{display:inline-block;width:28px;height:28px;border:2px solid #e6e8eb;border-top-color:#3370ff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:10px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;max-width:1100px;margin:0 auto 16px;padding:0 20px}
-.stat-card{background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.stat-card .l{font-size:11px;color:#888;margin-bottom:2px}
-.stat-card .v{font-size:18px;font-weight:700}
-.stat-card .v.up{color:#c62828}
-.stat-card .v.down{color:#2e7d32}
-.charts{max-width:1100px;margin:0 auto;padding:0 20px 20px}
-.chart-box{background:#fff;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.chart-box .ctitle{font-size:14px;font-weight:700;color:#333;margin-bottom:8px}
-#klineChart{width:100%;height:420px}
-#volumeChart{width:100%;height:130px}
-#closeChart{width:100%;height:320px}
-.error{max-width:700px;margin:20px auto;background:#fff0f0;border:1px solid #ffcdd2;border-radius:8px;padding:14px 18px;color:#c62828;display:none}
+
+/* 统计卡片 */
+.stats{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:#e6e8eb;border:1px solid #e6e8eb;border-radius:6px;margin-bottom:14px;overflow:hidden}
+.stat-card{background:#fff;padding:14px 12px;text-align:left}
+.stat-card .l{font-size:12px;color:#86909c;margin-bottom:4px}
+.stat-card .v{font-size:18px;font-weight:600;color:#1f2329;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.stat-card .v.up{color:#e63946}
+.stat-card .v.down{color:#16a34a}
+
+/* 图表卡片 */
+.charts{display:grid;grid-template-columns:1fr;gap:14px}
+.chart-box{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 16px}
+.chart-box .ctitle{font-size:14px;font-weight:600;color:#1f2329;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.chart-box .ctitle::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+#klineChart{width:100%;height:460px}
+#volumeChart{width:100%;height:140px}
+#closeChart{width:100%;height:300px}
+
+/* 数据表格 */
+.data-table{background:#fff;border:1px solid #e6e8eb;border-radius:6px;margin-top:14px;overflow:hidden}
+.data-table .table-header{padding:12px 16px;border-bottom:1px solid #e6e8eb;display:flex;justify-content:space-between;align-items:center}
+.data-table .table-title{font-size:14px;font-weight:600;color:#1f2329;display:flex;align-items:center;gap:6px}
+.data-table .table-title::before{content:"";display:inline-block;width:3px;height:14px;background:#3370ff;border-radius:2px}
+.data-table .table-meta{font-size:12px;color:#86909c}
+.data-table .table-wrap{max-height:480px;overflow-y:auto}
+.data-table .table-wrap::-webkit-scrollbar{width:8px;height:8px}
+.data-table .table-wrap::-webkit-scrollbar-thumb{background:#c9cdd4;border-radius:4px}
+.data-table .table-wrap::-webkit-scrollbar-track{background:#f0f1f3}
+.data-table table{width:100%;border-collapse:collapse;font-size:12px;font-family:-apple-system,SF Pro Display,Roboto,sans-serif}
+.data-table thead{position:sticky;top:0;background:#f7f8fa;z-index:1}
+.data-table th{padding:10px 12px;text-align:right;font-weight:500;color:#4e5969;border-bottom:1px solid #e6e8eb;white-space:nowrap;font-size:12px}
+.data-table th:first-child{text-align:center}
+.data-table td{padding:9px 12px;text-align:right;border-bottom:1px solid #f0f1f3;white-space:nowrap;color:#1f2329}
+.data-table td:first-child{text-align:center;color:#4e5969}
+.data-table tr:hover{background:#fafbfc}
+.data-table .up{color:#e63946}
+.data-table .down{color:#16a34a}
+.data-table .highlight-row{background:#f0f7ff}
+
+@media (max-width:900px){
+  .search-bar{grid-template-columns:repeat(6,1fr)}
+  .search-bar .field.col-3,.search-bar .field.col-4,.search-bar .field.col-5,.search-bar .field.col-12{grid-column:span 6}
+  .stats{grid-template-columns:repeat(4,1fr)}
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>📊 股票日线行情看板</h1>
-    <p id="subtitle">输入股票名称或代码，查看 K 线图与技术指标</p>
+    <div class="logo">K</div>
+    <h1>股票日线行情</h1>
+    <span class="sep">|</span>
+    <div class="stock-info">
+        <span class="code" id="headerCode">688256.SH</span>
+        <span class="name" id="headerName">寒武纪</span>
+        <span class="date" id="headerDate">--</span>
+    </div>
 </div>
 
-<div class="search-bar">
-    <div class="field">
-        <label>股票名称 / 代码</label>
-        <input class="wide" id="stockInput" value="688256.SH"
-               placeholder="例: 寒武纪 / 贵州茅台 / 600519 / 00700"
-               autocomplete="off">
-        <div class="suggest-box" id="suggestBox"></div>
-    </div>
-    <div class="field" style="min-width:240px;">
-        <label>📅 时间范围</label>
-        <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap;">
-            <select id="startYear" style="width:78px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">年</span>
-            <select id="startMonth" style="width:64px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">月</span>
-            <select id="startDay" style="width:64px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">日</span>
-        </div>
-    </div>
-    <div class="field" style="min-width:240px;">
-        <label>&nbsp;</label>
-        <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap;">
-            <span style="color:#888;font-size:12px;">至</span>
-            <select id="endYear" style="width:78px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">年</span>
-            <select id="endMonth" style="width:64px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">月</span>
-            <select id="endDay" style="width:64px;padding:7px 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;"></select>
-            <span style="color:#888;font-size:12px;">日</span>
-        </div>
-    </div>
-    <div class="field">
-        <label>&nbsp;</label>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            <button type="button" class="preset-btn" data-preset="1m" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">近1月</button>
-            <button type="button" class="preset-btn" data-preset="3m" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">近3月</button>
-            <button type="button" class="preset-btn" data-preset="6m" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">近6月</button>
-            <button type="button" class="preset-btn" data-preset="1y" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">近1年</button>
-            <button type="button" class="preset-btn" data-preset="2y" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">近2年</button>
-            <button type="button" class="preset-btn" data-preset="all" style="padding:6px 10px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:12px;cursor:pointer;">全部</button>
-        </div>
-    </div>
-    <div class="field">
-        <label>&nbsp;</label>
-        <button onclick="fetchData()" style="padding:8px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#302b63;color:#fff;height:36px;transition:background .2s;">🔍 查询</button>
-    </div>
-    <span class="hint">💡 支持中文名称、6位代码、sh/sz/hk 前缀</span>
-</div>
+<div class="container">
 
-<div class="error" id="errorBox"></div>
-<div class="loading" id="loading"><div class="spinner"></div>正在获取数据...</div>
-
-<div id="content" style="display:none">
-    <div class="stats" id="statsContainer"></div>
-    <div class="charts">
-        <div class="chart-box">
-            <div class="ctitle">K 线图</div>
-            <div id="klineChart"></div>
+    <!-- 控制面板 -->
+    <div class="search-bar">
+        <div class="field col-3">
+            <label>股票代码 / 名称</label>
+            <input id="stockInput" value="688256.SH"
+                   placeholder="例: 寒武纪 / 600519 / 00700"
+                   autocomplete="off">
+            <div class="suggest-box" id="suggestBox"></div>
         </div>
-        <div class="chart-box">
-            <div class="ctitle">成交量</div>
-            <div id="volumeChart"></div>
+        <div class="field col-4">
+            <label>开始日期</label>
+            <div style="display:flex;gap:4px;align-items:center;">
+                <select id="startYear" style="flex:1;min-width:0;"></select>
+                <select id="startMonth" style="flex:1;min-width:0;"></select>
+                <select id="startDay" style="flex:1;min-width:0;"></select>
+            </div>
         </div>
-        <div class="chart-box">
-            <div class="ctitle">收盘价曲线</div>
-            <div id="closeChart"></div>
+        <div class="field col-4">
+            <label>结束日期</label>
+            <div style="display:flex;gap:4px;align-items:center;">
+                <select id="endYear" style="flex:1;min-width:0;"></select>
+                <select id="endMonth" style="flex:1;min-width:0;"></select>
+                <select id="endDay" style="flex:1;min-width:0;"></select>
+            </div>
+        </div>
+        <div class="field col-1">
+            <label>&nbsp;</label>
+            <button class="btn-primary" onclick="fetchData()">查询</button>
+        </div>
+        <div class="field col-12">
+            <label>快捷范围</label>
+            <div class="preset-group">
+                <button type="button" class="preset-btn" data-preset="1m">近1月</button>
+                <button type="button" class="preset-btn" data-preset="3m">近3月</button>
+                <button type="button" class="preset-btn" data-preset="6m">近6月</button>
+                <button type="button" class="preset-btn" data-preset="1y">近1年</button>
+                <button type="button" class="preset-btn" data-preset="2y">近2年</button>
+                <button type="button" class="preset-btn" data-preset="all">全部</button>
+            </div>
         </div>
     </div>
+
+    <div class="error-msg" id="errorBox"></div>
+    <div class="loading" id="loading"><div class="spinner"></div>正在获取数据...</div>
+
+    <div id="content" style="display:none">
+        <div class="stats" id="statsContainer"></div>
+        <div class="charts">
+            <div class="chart-box">
+                <div class="ctitle">K 线图</div>
+                <div id="klineChart"></div>
+            </div>
+            <div class="chart-box">
+                <div class="ctitle">成交量</div>
+                <div id="volumeChart"></div>
+            </div>
+            <div class="chart-box">
+                <div class="ctitle">收盘价曲线</div>
+                <div id="closeChart"></div>
+            </div>
+        </div>
+        <div class="data-table">
+            <div class="table-header">
+                <div class="table-title">详细数据</div>
+                <div class="table-meta" id="tableMeta">--</div>
+            </div>
+            <div class="table-wrap" id="dataTableWrap"></div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -527,17 +702,7 @@ function applyPreset(preset) {
     startM.dispatchEvent(evt);
 
     // 触发高亮
-    document.querySelectorAll('.preset-btn').forEach(b => {
-        b.style.background = '#fff';
-        b.style.borderColor = '#ddd';
-        b.style.color = '#333';
-    });
-    const btn = document.querySelector(`.preset-btn[data-preset="${preset}"]`);
-    if (btn) {
-        btn.style.background = '#302b63';
-        btn.style.borderColor = '#302b63';
-        btn.style.color = '#fff';
-    }
+    setActivePreset(preset);
 
     fetchData();
 }
@@ -555,6 +720,12 @@ function getDateRange() {
     };
 }
 
+function setActivePreset(preset) {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.preset-btn[data-preset="${preset}"]`);
+    if (btn) btn.classList.add('active');
+}
+
 // ===== 查询 =====
 async function fetchData() {
     let code = document.getElementById('stockInput').value.trim();
@@ -564,10 +735,12 @@ async function fetchData() {
     const { start, end } = getDateRange();
     if (start > end) { showError('开始日期不能晚于结束日期'); return; }
 
-    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('errorBox').classList.remove('active');
     document.getElementById('content').style.display = 'none';
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('subtitle').textContent = '正在查询 ' + code + ' (' + start + ' ~ ' + end + ') ...';
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('headerCode').textContent = code;
+    document.getElementById('headerName').textContent = '加载中...';
+    document.getElementById('headerDate').textContent = start + ' ~ ' + end;
 
     try {
         const res = await fetch('/api/stock?tscode=' + encodeURIComponent(code) +
@@ -580,66 +753,101 @@ async function fetchData() {
     } catch(e) {
         showError('请求失败: ' + e.message);
     }
-    document.getElementById('loading').style.display = 'none';
+    document.getElementById('loading').classList.remove('active');
 }
 
 function showError(msg) {
-    document.getElementById('loading').style.display = 'none';
+    document.getElementById('loading').classList.remove('active');
     const box = document.getElementById('errorBox');
     box.textContent = msg;
-    box.style.display = 'block';
+    box.classList.add('active');
 }
 
 function render(d) {
-    document.getElementById('subtitle').textContent = d.tsCode + ' — ' + d.stats.start + ' ~ ' + d.stats.end;
+    // 头部信息
+    document.getElementById('headerCode').textContent = d.tsCode;
+    document.getElementById('headerName').textContent = d.tsCode.split('.')[0];
+    document.getElementById('headerDate').textContent = d.stats.start + ' ~ ' + d.stats.end;
     document.getElementById('content').style.display = 'block';
 
-    // Stats
+    // 统计卡片
     const s = d.stats;
     document.getElementById('statsContainer').innerHTML = [
-        {l:'起始日', v:s.start}, {l:'最新收盘', v:fmtP(s.lastClose), c:'up'},
-        {l:'区间最高', v:fmtP(s.highMax)}, {l:'区间最低', v:fmtP(s.lowMin)},
+        {l:'起始日', v:s.start},
+        {l:'最新收盘', v:fmtP(s.lastClose)},
+        {l:'区间最高', v:fmtP(s.highMax)},
+        {l:'区间最低', v:fmtP(s.lowMin)},
         {l:'涨跌额', v:fmtP(s.change), c:s.change>=0?'up':'down'},
-        {l:'涨跌幅', v:s.changePct+'%', c:s.change>=0?'up':'down'},
-        {l:'总成交量', v:s.totalVol+'万手'}, {l:'交易日数', v:s.days+'天'}
+        {l:'涨跌幅', v:(s.changePct>=0?'+':'')+s.changePct+'%', c:s.changePct>=0?'up':'down'},
+        {l:'总成交量', v:s.totalVol+'万手'},
+        {l:'交易日数', v:s.days+'天'},
     ].map(x => `<div class="stat-card"><div class="l">${x.l}</div><div class="v ${x.c||''}">${x.v}</div></div>`).join('');
+
+    // 详细数据表格（可滚动）
+    const rows = d.dates.map((dt, i) => {
+        const k = d.klineData[i];
+        const close = k[1], open = k[0], high = k[3], low = k[2];
+        const pct = d.pctData[i];
+        const vol = d.volData[i];
+        const cls = pct >= 0 ? 'up' : 'down';
+        const sign = pct >= 0 ? '+' : '';
+        return `<tr>
+            <td>${fmtD(dt)}</td>
+            <td>${open.toFixed(2)}</td>
+            <td class="${cls}">${close.toFixed(2)}</td>
+            <td>${high.toFixed(2)}</td>
+            <td>${low.toFixed(2)}</td>
+            <td class="${cls}">${sign}${pct.toFixed(2)}%</td>
+            <td>${(vol/10000).toFixed(0)}</td>
+            <td class="${cls}">${close > open ? '↑' : (close < open ? '↓' : '—')}</td>
+        </tr>`;
+    }).reverse().join('');
+    document.getElementById('dataTableWrap').innerHTML =
+        `<table><thead><tr>
+            <th>日期</th><th>开盘</th><th>收盘</th><th>最高</th><th>最低</th>
+            <th>涨跌幅</th><th>成交量(手)</th><th>方向</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+    document.getElementById('tableMeta').textContent = `共 ${d.dates.length} 条交易数据 · 显示最新 ${Math.min(d.dates.length, 50)} 条`;
 
     // K-line
     const kc = echarts.init(document.getElementById('klineChart'));
     kc.setOption({
         tooltip:{trigger:'axis',axisPointer:{type:'cross'},
             formatter:function(p){const i=p[0].dataIndex;
-                return `<b>${fmtD(d.dates[i])}</b><br/>开盘：${fmtP(d.klineData[i][0])}<br/>收盘：${fmtP(d.klineData[i][1])}<br/>最高：${fmtP(d.klineData[i][3])}<br/>最低：${fmtP(d.klineData[i][2])}<br/>涨跌幅：<span style="color:${d.pctData[i]>=0?'#c62828':'#2e7d32'}">${d.pctData[i].toFixed(2)}%</span><br/>成交量：${fmtV(d.volData[i])}`;}},
-        grid:{left:'12%',right:'8%',top:'10%',bottom:'6%'},
-        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{rotate:45,fontSize:10,interval:Math.floor(d.dates.length/20)}},
-        yAxis:{type:'value',scale:true,name:'价格 (¥)',nameLocation:'middle',nameGap:50,axisLabel:{formatter:'¥{value}'}},
-        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
+                return `<b>${fmtD(d.dates[i])}</b><br/>开盘：${fmtP(d.klineData[i][0])}<br/>收盘：<span style="color:${d.pctData[i]>=0?'#e63946':'#16a34a'};font-weight:600">${fmtP(d.klineData[i][1])}</span><br/>最高：${fmtP(d.klineData[i][3])}<br/>最低：${fmtP(d.klineData[i][2])}<br/>涨跌幅：<span style="color:${d.pctData[i]>=0?'#e63946':'#16a34a'}">${d.pctData[i].toFixed(2)}%</span><br/>成交量：${fmtV(d.volData[i])}`;}},
+        grid:{left:'10%',right:'4%',top:'6%',bottom:'12%'},
+        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{rotate:0,fontSize:10,interval:Math.floor(d.dates.length/12)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:2,height:18,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
         series:[{type:'candlestick',data:d.klineData,
-            itemStyle:{color:'#c62828',color0:'#2e7d32',borderColor:'#c62828',borderColor0:'#2e7d32'}}]
+            itemStyle:{color:'#e63946',color0:'#16a34a',borderColor:'#e63946',borderColor0:'#16a34a'}}]
     });
 
     // Volume
     const vc = echarts.init(document.getElementById('volumeChart'));
     vc.setOption({
         tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return `<b>${fmtD(d.dates[i])}</b><br/>成交量：${fmtV(d.volData[i])}`;}},
-        grid:{left:'12%',right:'8%',top:'18%',bottom:'6%'},
-        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{show:false}},
-        yAxis:{type:'value',name:'成交量 (手)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万'}},
-        series:[{type:'bar',data:d.volData.map((v,i)=>({value:v,itemStyle:{color:d.volColors[i]}})),barWidth:'50%'}]
+        grid:{left:'10%',right:'4%',top:'18%',bottom:'2%'},
+        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{show:false},axisLine:{show:false}},
+        yAxis:{type:'value',axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万',color:'#86909c'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        series:[{type:'bar',data:d.volData.map((v,i)=>({value:v,itemStyle:{color:d.volColors[i]}})),barWidth:'60%'}]
     });
 
     // Close price
     const closeP = d.klineData.map(x=>x[1]);
     const cc = echarts.init(document.getElementById('closeChart'));
     cc.setOption({
-        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return `<b>${fmtD(d.dates[i])}</b><br/>收盘价：<span style="color:#2196F3;font-weight:700">${fmtP(closeP[i])}</span><br/>涨跌幅：<span style="color:${d.pctData[i]>=0?'#c62828':'#2e7d32'}">${d.pctData[i].toFixed(2)}%</span>`;}},
-        grid:{left:'10%',right:'8%',top:'10%',bottom:'12%'},
-        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{rotate:45,fontSize:10,interval:Math.floor(d.dates.length/20)}},
-        yAxis:{type:'value',scale:true,name:'收盘价 (¥)',nameLocation:'middle',nameGap:55,axisLabel:{formatter:'¥{value}'}},
-        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:0,height:18}],
-        series:[{type:'line',data:closeP,smooth:true,symbol:'none',lineStyle:{width:2,color:'#2196F3'},
-            areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(33,150,243,0.25)'},{offset:1,color:'rgba(33,150,243,0.02)'}]}}}]
+        tooltip:{trigger:'axis',formatter:function(p){const i=p[0].dataIndex;return `<b>${fmtD(d.dates[i])}</b><br/>收盘价：<span style="color:#3370ff;font-weight:600">${fmtP(closeP[i])}</span><br/>涨跌幅：<span style="color:${d.pctData[i]>=0?'#e63946':'#16a34a'}">${d.pctData[i].toFixed(2)}%</span>`;}},
+        grid:{left:'10%',right:'4%',top:'6%',bottom:'12%'},
+        xAxis:{type:'category',data:d.dates.map(fmtD),axisLabel:{rotate:0,fontSize:10,interval:Math.floor(d.dates.length/12)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
+        yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
+        dataZoom:[{type:'inside',start:0,end:100},{type:'slider',start:0,end:100,bottom:2,height:18,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
+        series:[{type:'line',data:closeP,smooth:true,symbol:'none',lineStyle:{width:2,color:'#3370ff'},
+            areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(51,112,255,0.18)'},{offset:1,color:'rgba(51,112,255,0.02)'}]}}}]
     });
+
+    // 图表随窗口缩放
+    window.addEventListener('resize', () => { kc.resize(); vc.resize(); cc.resize(); });
 }
 
 // 默认加载
@@ -647,13 +855,7 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
 });
 initDateSelects();
-// 默认高亮"近1年"
-const defBtn = document.querySelector('.preset-btn[data-preset="1y"]');
-if (defBtn) {
-    defBtn.style.background = '#302b63';
-    defBtn.style.borderColor = '#302b63';
-    defBtn.style.color = '#fff';
-}
+setActivePreset('1y');
 fetchData();
 </script>
 </body>
@@ -710,6 +912,43 @@ def api_stock():
         )
         data = build_data_json(df)
         return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/indicators")
+def api_indicators():
+    """
+    返回 RSI / MACD / 布林带 / KDJ / MA 五大技术指标。
+    参数:
+      tscode: 股票代码或中文名
+      start_date / end_date: YYYY-MM-DD（可选）
+      rsi_period, macd_fast, macd_slow, macd_signal, bb_period, bb_k: 可调参数
+    """
+    tscode = request.args.get("tscode", "")
+    if not tscode:
+        return jsonify({"error": "请提供股票代码"})
+    try:
+        rsi_period = int(request.args.get("rsi_period", 14))
+        macd_fast = int(request.args.get("macd_fast", 12))
+        macd_slow = int(request.args.get("macd_slow", 26))
+        macd_signal = int(request.args.get("macd_signal", 9))
+        bb_period = int(request.args.get("bb_period", 20))
+        bb_k = float(request.args.get("bb_k", 2.0))
+
+        resolved = resolve_tscode(tscode)
+        df = fetch_kline(
+            resolved,
+            start_date=request.args.get("start_date") or None,
+            end_date=request.args.get("end_date") or None,
+        )
+        ind = calc_indicators(
+            df, rsi_period=rsi_period, macd_fast=macd_fast,
+            macd_slow=macd_slow, macd_signal=macd_signal,
+            bb_period=bb_period, bb_k=bb_k,
+        )
+        ind["tsCode"] = df.iloc[0]["ts_code"]
+        return jsonify(ind)
     except Exception as e:
         return jsonify({"error": str(e)})
 
