@@ -124,26 +124,34 @@ function se(m){$('load').style.display='none';$('err').textContent=m;$('err').st
 function rn(raw, code){
     // raw: [["2025-01-02", 1445.0, 1455.0, 1435.0, 1448.0, 12345], ...]
     // 格式: [日期, 开盘, 收盘, 最高, 最低, 成交量]
+    // 重要: 腾讯API返回的值都是字符串,需要转数字
     let dates = [], kd = [], vol = [], pct = [];
     let firstClose = 0;
     
     for(let i=0;i<raw.length;i++){
         let r = raw[i];
+        // 强制转数字
+        let o = parseFloat(r[1]);
+        let c = parseFloat(r[2]);
+        let h = parseFloat(r[3]);
+        let l = parseFloat(r[4]);
+        let v = parseFloat(r[5]);
+        
         dates.push(r[0]);
-        kd.push([r[1], r[2], r[4], r[3]]); // [open, close, low, high]
-        vol.push(r[5]);
+        kd.push([o, c, l, h]); // [open, close, low, high]
+        vol.push(v);
         if(i>0){
-            let prev = raw[i-1][2];
-            pct.push((r[2]-prev)/prev*100);
+            let prev = parseFloat(raw[i-1][2]);
+            pct.push((c-prev)/prev*100);
         } else {
-            firstClose = r[2];
+            firstClose = c;
             pct.push(0);
         }
     }
     
     let lastClose = kd[kd.length-1][1];
-    let high = Math.max(...kd.map(x=>x[3]));
-    let low = Math.min(...kd.map(x=>x[2]));
+    let high = Math.max.apply(null, kd.map(x=>x[3]));
+    let low = Math.min.apply(null, kd.map(x=>x[2]));
     let chg = lastClose - firstClose;
     let chgPct = chg / firstClose * 100;
     let totalVol = vol.reduce((a,b)=>a+b,0);
