@@ -99,28 +99,27 @@ async function q(){
     $('load').style.display='block';
 
     try {
-        // 腾讯 API 格式: 2025-01-01 或 2025-01-01,2026-07-13
-        let dateParam = startDate + ',' + endDate;
-        let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${dateParam},,500,qfq`;
+        // 腾讯 API 格式: 2025-01-01,2026-07-13
+        let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${startDate},${endDate},500,qfq`;
         let r = await fetch(url);
         let j = await r.json();
-        if(!j.data){se('未获取到数据，请检查股票代码格式');console.log(j);return}
+        console.log('API返回:', j);
+        if(!j || j.code !== 0 || !j.data){se('API错误: '+(j.msg||'无数据'));return}
         
-        // 找K线数据
-        let d = j.data;
-        let keys = Object.keys(d);
-        let kd = null;
-        for(let k of keys){
-            if(d[k].day){kd=d[k].day;break}
-            if(d[k].qfqday){kd=d[k].qfqday;break}
-        }
-        if(!kd) for(let k of keys){if(Array.isArray(d[k])){kd=d[k];break}}
-        if(!kd){se('无法解析数据格式');console.log(j);return}
+        // 取第一个 key (如 "sh600519")
+        let keys = Object.keys(j.data);
+        if(keys.length === 0){se('返回数据为空');return}
+        let stock = j.data[keys[0]];
+        if(!stock){se('无法获取股票数据');return}
         
-        if(kd.length === 0){se('该时间范围内无数据');return}
+        // 优先取 qfqday (前复权), 其次 day
+        let kd = stock.qfqday || stock.day;
+        if(!kd || !Array.isArray(kd) || kd.length === 0){se('该时间范围内无数据');return}
+        
         rn(kd, code);
     } catch(e){
         se('请求失败: '+e.message);
+        console.error(e);
     }
     $('load').style.display='none';
 }
