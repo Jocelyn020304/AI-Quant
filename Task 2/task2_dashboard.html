@@ -189,7 +189,7 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
             </div>
         </div>
 
-        <div class="hint">数据来源于 Tushare Pro API，复权方式可自由切换。A 股红涨绿跌。</div>
+        <div class="hint">数据来源于腾讯行情 API，纯前端计算。A 股红涨绿跌。如需 Tushare 后端版，可启动 <code>task2_backend.py</code> 后访问 <code>http://localhost:5001</code>。</div>
     </div>
 
     <div class="error-msg" id="errorBox"></div>
@@ -256,24 +256,65 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 </div>
 
 <script>
-const API_BASE = '';
 const fmtP = v => '¥' + Number(v).toFixed(2);
 const fmtPct = v => (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
 
+// ===== 内置股票列表（80+ 热门 A 股，搜索用） =====
+const STOCK_LIST = [
+  {code:'000001',name:'平安银行',market:'深A'},{code:'000002',name:'万科A',market:'深A'},
+  {code:'000333',name:'美的集团',market:'深A'},{code:'000651',name:'格力电器',market:'深A'},
+  {code:'000858',name:'五粮液',market:'深A'},{code:'002230',name:'科大讯飞',market:'深A'},
+  {code:'002415',name:'海康威视',market:'深A'},{code:'002475',name:'立讯精密',market:'深A'},
+  {code:'002714',name:'牧原股份',market:'深A'},{code:'300059',name:'东方财富',market:'深A'},
+  {code:'300124',name:'汇川技术',market:'深A'},{code:'300274',name:'阳光电源',market:'深A'},
+  {code:'300308',name:'中际旭创',market:'深A'},{code:'300750',name:'宁德时代',market:'深A'},
+  {code:'300760',name:'迈瑞医疗',market:'深A'},{code:'600000',name:'浦发银行',market:'沪A'},
+  {code:'600028',name:'中国石化',market:'沪A'},{code:'600030',name:'中信证券',market:'沪A'},
+  {code:'600031',name:'三一重工',market:'沪A'},{code:'600036',name:'招商银行',market:'沪A'},
+  {code:'600048',name:'保利发展',market:'沪A'},{code:'600104',name:'上汽集团',market:'沪A'},
+  {code:'600150',name:'中国船舶',market:'沪A'},{code:'600276',name:'恒瑞医药',market:'沪A'},
+  {code:'600309',name:'万华化学',market:'沪A'},{code:'600519',name:'贵州茅台',market:'沪A'},
+  {code:'600585',name:'海螺水泥',market:'沪A'},{code:'600690',name:'海尔智家',market:'沪A'},
+  {code:'600809',name:'山西汾酒',market:'沪A'},{code:'600887',name:'伊利股份',market:'沪A'},
+  {code:'600900',name:'长江电力',market:'沪A'},{code:'601012',name:'隆基绿能',market:'沪A'},
+  {code:'601088',name:'中国神华',market:'沪A'},{code:'601127',name:'赛力斯',market:'沪A'},
+  {code:'601138',name:'工业富联',market:'沪A'},{code:'601166',name:'兴业银行',market:'沪A'},
+  {code:'601318',name:'中国平安',market:'沪A'},{code:'601328',name:'交通银行',market:'沪A'},
+  {code:'601398',name:'工商银行',market:'沪A'},{code:'601628',name:'中国人寿',market:'沪A'},
+  {code:'601633',name:'长城汽车',market:'沪A'},{code:'601668',name:'中国建筑',market:'沪A'},
+  {code:'601688',name:'华泰证券',market:'沪A'},{code:'601728',name:'中国电信',market:'沪A'},
+  {code:'601766',name:'中国中车',market:'沪A'},{code:'601857',name:'中国石油',market:'沪A'},
+  {code:'601899',name:'紫金矿业',market:'沪A'},{code:'601919',name:'中远海控',market:'沪A'},
+  {code:'601939',name:'建设银行',market:'沪A'},{code:'601985',name:'中国核电',market:'沪A'},
+  {code:'601988',name:'中国银行',market:'沪A'},{code:'603259',name:'药明康德',market:'沪A'},
+  {code:'603288',name:'海天味业',market:'沪A'},{code:'603501',name:'韦尔股份',market:'沪A'},
+  {code:'688012',name:'中微公司',market:'沪A'},{code:'688041',name:'海光信息',market:'沪A'},
+  {code:'688111',name:'金山办公',market:'沪A'},{code:'688256',name:'寒武纪',market:'沪A'},
+  {code:'688271',name:'联影医疗',market:'沪A'},{code:'688981',name:'中芯国际',market:'沪A'},
+];
+
+// ===== 工具函数 =====
+function toTencentCode(code) {
+  const m = code.match(/^(\d{6})/);
+  if (!m) return null;
+  const num = m[1];
+  if (num.startsWith('6') || num.startsWith('9')) return 'sh' + num;
+  if (num.startsWith('0') || num.startsWith('3')) return 'sz' + num;
+  if (num.startsWith('4') || num.startsWith('8')) return 'bj' + num;
+  return 'sh' + num;
+}
+
 let searchTimer = null;
-let selectedTsCode = '';
+let selectedCode = '';
 let currentData = null;
 let chartMain, chartBoll, chartRSI, chartMACD, chartKDJ;
 
-// ===== 搜索建议 =====
+// ===== 搜索建议（本地列表） =====
 document.getElementById('stockInput').addEventListener('input', function(e) {
     clearTimeout(searchTimer);
     const val = e.target.value.trim();
-    if (val.length < 1) {
-        document.getElementById('suggestBox').classList.remove('active');
-        return;
-    }
-    searchTimer = setTimeout(() => doSearch(val), 250);
+    if (val.length < 1) { document.getElementById('suggestBox').classList.remove('active'); return; }
+    searchTimer = setTimeout(() => doSearch(val), 200);
 });
 
 document.getElementById('stockInput').addEventListener('keydown', function(e) {
@@ -282,70 +323,39 @@ document.getElementById('stockInput').addEventListener('keydown', function(e) {
     const items = box.querySelectorAll('.suggest-item');
     if (items.length === 0) return;
     let idx = Array.from(items).findIndex(el => el.classList.contains('hover'));
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        idx = Math.min(idx + 1, items.length - 1);
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        idx = Math.max(idx - 1, 0);
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (idx >= 0) items[idx].click();
-        return;
-    } else return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, 0); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (idx >= 0) items[idx].click(); return; }
+    else return;
     items.forEach(el => el.classList.remove('hover'));
     items[idx].classList.add('hover');
     items[idx].scrollIntoView({block: 'nearest'});
 });
 
 document.addEventListener('click', function(e) {
-    if (!document.getElementById('stockInput').contains(e.target)) {
+    if (!document.getElementById('stockInput').contains(e.target))
         document.getElementById('suggestBox').classList.remove('active');
-    }
 });
 
-async function doSearch(keyword) {
+function doSearch(keyword) {
     const box = document.getElementById('suggestBox');
-    try {
-        const resp = await fetch(API_BASE + '/api/search?q=' + encodeURIComponent(keyword));
-        const data = await resp.json();
-        if (!data.stocks || data.stocks.length === 0) {
-            box.classList.remove('active');
-            return;
-        }
-        box.innerHTML = data.stocks.map(s =>
-            `<div class="suggest-item" onclick="selectStock('${s.tsCode}', '${s.name}')">
-                <span><span class="sname">${s.name}</span> <span class="scode">${s.code}</span></span>
-                <span class="smarket">${s.market || ''}</span>
-            </div>`
-        ).join('');
-        box.classList.add('active');
-    } catch(e) {
-        box.classList.remove('active');
-    }
+    const k = keyword.toLowerCase();
+    const matched = STOCK_LIST.filter(s => s.name.includes(k) || s.code.startsWith(k));
+    if (matched.length === 0) { box.classList.remove('active'); return; }
+    box.innerHTML = matched.slice(0, 12).map(s =>
+        `<div class="suggest-item" onclick="selectStock('${s.code}','${s.name}')">
+          <span><span class="sname">${s.name}</span> <span class="scode">${s.code}</span></span>
+          <span class="smarket">${s.market}</span>
+        </div>`
+    ).join('');
+    box.classList.add('active');
 }
 
-function selectStock(tsCode, name) {
-    selectedTsCode = tsCode;
-    document.getElementById('stockInput').value = name;
+function selectStock(code, name) {
+    selectedCode = code;
+    document.getElementById('stockInput').value = name + ' (' + code + ')';
     document.getElementById('suggestBox').classList.remove('active');
     fetchData();
-}
-
-// ===== 日期初始化 =====
-function initDates() {
-    const today = new Date();
-    const oneYearAgo = new Date(today);
-    oneYearAgo.setFullYear(today.getFullYear() - 1);
-    document.getElementById('endDate').value = formatDate(today);
-    document.getElementById('startDate').value = formatDate(oneYearAgo);
-}
-
-function formatDate(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
 }
 
 // ===== 快捷范围 =====
@@ -371,6 +381,15 @@ function applyRange(range) {
     fetchData();
 }
 
+function initDates() {
+    const today = new Date();
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+    document.getElementById('endDate').value = formatDate(today);
+    document.getElementById('startDate').value = formatDate(oneYearAgo);
+}
+function formatDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
 // ===== Tab 切换 =====
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -382,72 +401,250 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     });
 });
 
-// ===== 查询数据 =====
+// ===== 主数据获取函数（腾讯行情 API，纯前端） =====
 async function fetchData() {
-    let code = document.getElementById('stockInput').value.trim();
-    if (selectedTsCode) code = selectedTsCode;
-    if (!code) { showError('请输入股票名称或代码'); return; }
+    const raw = document.getElementById('stockInput').value.trim();
+    const m = raw.match(/(\d{6})/);
+    if (!m) { showError('请输入有效的股票代码或名称'); return; }
+    const code = m[1];
+    const tcCode = toTencentCode(code);
+    if (!tcCode) { showError('无法识别的股票代码'); return; }
 
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-    if (start > end) { showError('开始日期不能晚于结束日期'); return; }
-
-    const adj = document.getElementById('adjType').value;
-    const params = new URLSearchParams({
-        tscode: code,
-        start_date: start,
-        end_date: end,
-        adj: adj,
-        rsi_period: document.getElementById('rsiPeriod').value || 14,
-        macd_fast: document.getElementById('macdFast').value || 12,
-        macd_slow: document.getElementById('macdSlow').value || 26,
-        macd_signal: document.getElementById('macdSignal').value || 9,
-        bb_period: document.getElementById('bbPeriod').value || 20,
-        bb_k: document.getElementById('bbK').value || 2,
-        kdj_n: document.getElementById('kdjN').value || 9,
-        kdj_m1: document.getElementById('kdjM1').value || 3,
-        kdj_m2: document.getElementById('kdjM2').value || 3,
-    });
-
+    const adj = document.getElementById('adjType').value;  // qfq | hfq | none
     hideError();
     document.getElementById('content').style.display = 'none';
     document.getElementById('loading').classList.add('active');
     document.getElementById('headerCode').textContent = code;
-    document.getElementById('headerName').textContent = '加载中...';
-    document.getElementById('headerDate').textContent = start + ' ~ ' + end;
+    document.getElementById('headerDate').textContent = '加载中...';
 
     try {
-        const resp = await fetch(API_BASE + '/api/indicators?' + params.toString());
-        const data = await resp.json();
-        if (data.error) { showError(data.error); return; }
-        currentData = data;
-        selectedTsCode = '';
-        render(data);
-    } catch(e) {
-        showError('请求失败: ' + e.message);
+        // 腾讯 API 支持三种复权：qfq(前复权) / hfq(后复权) / 空(不复权)
+        const adjParam = adj === 'none' ? '' : ',' + adj;
+        const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tcCode},day,,,640${adjParam}`;
+        const resp = await fetch(url);
+        const json = await resp.json();
+        if (!json.data || !json.data[tcCode]) { showError('未获取到数据，请检查股票代码'); return; }
+
+        // 腾讯 API 用不同 key 存放不同复权方式的数据
+        const keyMap = { qfq: 'qfqday', hfq: 'hfqday', none: 'day' };
+        const dataKey = keyMap[adj];
+        let klines = json.data[tcCode][dataKey] || json.data[tcCode].day;
+
+        if (!klines || klines.length === 0) { showError('该股票暂无日线数据'); return; }
+
+        // kline 格式: [日期, 开, 收, 高, 低, 成交量(手)]
+        let rows = klines.map(k => ({ date: k[0], open: +k[1], close: +k[2], high: +k[3], low: +k[4], vol: +k[5] }));
+
+        // 按日期范围过滤
+        if (document.getElementById('startDate').value && document.getElementById('endDate').value) {
+            rows = rows.filter(r => r.date >= document.getElementById('startDate').value && r.date <= document.getElementById('endDate').value);
+        } else {
+            // 默认近1年
+            const endDate = new Date(rows[rows.length - 1].date);
+            const startDate = new Date(endDate);
+            startDate.setFullYear(endDate.getFullYear() - 1);
+            rows = rows.filter(r => r.date >= startDate.toISOString().substring(0, 10));
+        }
+        if (rows.length === 0) { showError('所选范围内无数据'); return; }
+
+        // 股票名称
+        const found = STOCK_LIST.find(s => s.code === code);
+        const tcName = found ? found.name : code;
+
+        // 计算所有指标
+        const ind = calcIndicators(rows, {
+            rsiPeriod: parseInt(document.getElementById('rsiPeriod').value) || 14,
+            macdFast: parseInt(document.getElementById('macdFast').value) || 12,
+            macdSlow: parseInt(document.getElementById('macdSlow').value) || 26,
+            macdSignal: parseInt(document.getElementById('macdSignal').value) || 9,
+            bbPeriod: parseInt(document.getElementById('bbPeriod').value) || 20,
+            bbK: parseFloat(document.getElementById('bbK').value) || 2,
+            kdjN: parseInt(document.getElementById('kdjN').value) || 9,
+            kdjM1: parseInt(document.getElementById('kdjM1').value) || 3,
+            kdjM2: parseInt(document.getElementById('kdjM2').value) || 3,
+        });
+        ind.code = code;
+        ind.tcName = tcName;
+        ind.adjType = adj;
+        ind.tsCode = tcCode;
+        currentData = ind;
+        selectedCode = '';
+        render(ind);
+    } catch (e) {
+        showError('请求失败: ' + e.message + '。请确认网络连通后重试。如果跨域被浏览器拦截，可尝试用本地服务器打开此页面。');
     }
     document.getElementById('loading').classList.remove('active');
 }
 
 function showError(msg) {
     document.getElementById('loading').classList.remove('active');
-    const box = document.getElementById('errorBox');
-    box.textContent = msg;
-    box.classList.add('active');
+    document.getElementById('errorBox').textContent = msg;
+    document.getElementById('errorBox').classList.add('active');
 }
 function hideError() { document.getElementById('errorBox').classList.remove('active'); }
 
+// ===== 纯前端指标计算 =====
+function calcIndicators(rows, p) {
+    const n = rows.length;
+    const close = rows.map(r => r.close);
+    const high = rows.map(r => r.high);
+    const low = rows.map(r => r.low);
+    const dates = rows.map(r => r.date);
+
+    // MA (简单移动平均)
+    function ma(arr, period) {
+        const out = new Array(n).fill(null);
+        let sum = 0;
+        for (let i = 0; i < n; i++) {
+            sum += arr[i];
+            if (i >= period) sum -= arr[i - period];
+            if (i >= period - 1) out[i] = sum / period;
+        }
+        return out;
+    }
+
+    // EMA
+    function ema(arr, period) {
+        const out = new Array(n).fill(null);
+        const k = 2 / (period + 1);
+        let prev = null;
+        for (let i = 0; i < n; i++) {
+            if (i < period - 1) { out[i] = null; continue; }
+            if (prev === null) {
+                let s = 0;
+                for (let j = 0; j < period; j++) s += arr[j];
+                prev = s / period;
+            } else {
+                prev = arr[i] * k + prev * (1 - k);
+            }
+            out[i] = prev;
+        }
+        return out;
+    }
+
+    // RSI (Wilder 平滑)
+    function calcRsi(arr, period) {
+        const out = new Array(n).fill(null);
+        let avgGain = 0, avgLoss = 0;
+        for (let i = 1; i < n; i++) {
+            const diff = arr[i] - arr[i - 1];
+            const gain = Math.max(0, diff);
+            const loss = Math.max(0, -diff);
+            if (i <= period) {
+                avgGain += gain; avgLoss += loss;
+                if (i === period) {
+                    avgGain /= period; avgLoss /= period;
+                    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                    out[i] = 100 - 100 / (1 + rs);
+                }
+            } else {
+                avgGain = (avgGain * (period - 1) + gain) / period;
+                avgLoss = (avgLoss * (period - 1) + loss) / period;
+                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                out[i] = 100 - 100 / (1 + rs);
+            }
+        }
+        return out;
+    }
+
+    // MACD
+    const emaFast = ema(close, p.macdFast);
+    const emaSlow = ema(close, p.macdSlow);
+    const dif = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        if (emaFast[i] !== null && emaSlow[i] !== null) dif[i] = emaFast[i] - emaSlow[i];
+    }
+    const dea = new Array(n).fill(null);
+    let deaStart = -1;
+    for (let i = 0; i < n; i++) { if (dif[i] !== null) { deaStart = i; break; } }
+    if (deaStart >= 0) {
+        let deaPrev = null;
+        const k2 = 2 / (p.macdSignal + 1);
+        for (let i = deaStart; i < n; i++) {
+            if (i < deaStart + p.macdSignal - 1) continue;
+            if (deaPrev === null) {
+                let s = 0;
+                for (let j = 0; j < p.macdSignal; j++) s += dif[deaStart + j];
+                deaPrev = s / p.macdSignal;
+            } else { deaPrev = dif[i] * k2 + deaPrev * (1 - k2); }
+            dea[i] = deaPrev;
+        }
+    }
+    const macdHist = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        if (dif[i] !== null && dea[i] !== null) macdHist[i] = (dif[i] - dea[i]) * 2;
+    }
+
+    // 布林带
+    const bbMid = ma(close, p.bbPeriod);
+    const bbUpper = new Array(n).fill(null);
+    const bbLower = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        if (bbMid[i] === null) continue;
+        let s = 0;
+        for (let j = 0; j < p.bbPeriod; j++) s += Math.pow(close[i - j] - bbMid[i], 2);
+        const std = Math.sqrt(s / p.bbPeriod);
+        bbUpper[i] = bbMid[i] + p.bbK * std;
+        bbLower[i] = bbMid[i] - p.bbK * std;
+    }
+
+    // KDJ
+    const kdjK = new Array(n).fill(null);
+    const kdjD = new Array(n).fill(null);
+    const kdjJ = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        if (i < p.kdjN - 1) continue;
+        const lowN = Math.min(...low.slice(i - p.kdjN + 1, i + 1));
+        const highN = Math.max(...high.slice(i - p.kdjN + 1, i + 1));
+        const rsv = highN === lowN ? 50 : (close[i] - lowN) / (highN - lowN) * 100;
+        if (i === p.kdjN - 1) {
+            kdjK[i] = rsv;
+            kdjD[i] = rsv;
+        } else if (kdjK[i - 1] !== null) {
+            kdjK[i] = (2 / 3) * kdjK[i - 1] + (1 / 3) * rsv;
+            kdjD[i] = (2 / 3) * kdjD[i - 1] + (1 / 3) * kdjK[i];
+        }
+        if (kdjK[i] !== null && kdjD[i] !== null) {
+            kdjJ[i] = 3 * kdjK[i] - 2 * kdjD[i];
+        }
+    }
+
+    // 涨跌幅
+    const pct = new Array(n).fill(0);
+    for (let i = 1; i < n; i++) { pct[i] = (close[i] - close[i - 1]) / close[i - 1] * 100; }
+
+    const vol = rows.map(r => r.vol);
+
+    return {
+        dates, close, open: rows.map(r => r.open), high, low, vol, pct,
+        ma: {
+            ma5: ma(close, 5), ma10: ma(close, 10), ma20: ma(close, 20), ma60: ma(close, 60),
+        },
+        rsi: { period: p.rsiPeriod, values: calcRsi(close, p.rsiPeriod) },
+        macd: { dif, dea, hist: macdHist },
+        boll: { upper: bbUpper, mid: bbMid, lower: bbLower },
+        kdj: { k: kdjK, d: kdjD, j: kdjJ },
+        stats: {
+            start: dates[0], end: dates[dates.length - 1],
+            lastClose: close[close.length - 1],
+            highMax: Math.max(...high), lowMin: Math.min(...low),
+            change: close[close.length - 1] - close[0],
+            changePct: (close[close.length - 1] - close[0]) / close[0] * 100,
+            days: n,
+        }
+    };
+}
 // ===== 渲染 =====
 function render(d) {
-    document.getElementById('headerCode').textContent = d.tsCode;
-    document.getElementById('headerName').textContent = d.tsCode.split('.')[0];
+    document.getElementById('headerCode').textContent = d.code;
+    document.getElementById('headerName').textContent = d.tcName || d.code;
     document.getElementById('headerDate').textContent = d.stats.start + ' ~ ' + d.stats.end;
     document.getElementById('content').style.display = 'block';
 
     const s = d.stats;
     const adjText = {none: '不复权', qfq: '前复权', hfq: '后复权'}[d.adjType] || d.adjType;
     document.getElementById('statsContainer').innerHTML = [
-        {l:'股票代码', v:d.tsCode},
+        {l:'股票代码', v:d.code},
         {l:'复权方式', v:adjText},
         {l:'最新收盘', v:fmtP(s.lastClose)},
         {l:'区间最高', v:fmtP(s.highMax)},
@@ -702,6 +899,7 @@ function renderTable(d) {
 
 // ===== 初始化 =====
 initDates();
+document.querySelector('.preset-btn[data-range="1y"]') ? null : null;
 fetchData();
 </script>
 </body>
