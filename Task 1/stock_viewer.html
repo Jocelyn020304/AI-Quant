@@ -11,7 +11,7 @@ body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;c
 .header{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:24px 20px;text-align:center}
 .header h1{font-size:22px;margin-bottom:4px}
 .header p{font-size:13px;opacity:.75}
-.search{max-width:700px;margin:20px auto;background:#fff;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.search{max-width:1100px;margin:20px auto 0;background:#fff;border-radius:10px;padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .search .f{display:flex;flex-direction:column;gap:4px}
 .search .f label{font-size:12px;font-weight:600;color:#666}
 .search .f input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:160px;outline:none}
@@ -19,7 +19,7 @@ body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;c
 .search button{padding:8px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#302b63;color:#fff;height:36px;transition:background .2s}
 .search button:hover{background:#1a1640}
 .search .hint{font-size:12px;color:#999;margin-left:auto;align-self:center}
-.quick{max-width:700px;margin:12px auto 0;padding:0 20px;display:flex;gap:8px;flex-wrap:wrap}
+.quick{max-width:1100px;margin:12px auto 0;padding:0 20px;display:flex;gap:8px;flex-wrap:wrap}
 .quick button{padding:4px 14px;border:1px solid #ddd;border-radius:14px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .2s}
 .quick button:hover{background:#302b63;color:#fff;border-color:#302b63}
 .loading{text-align:center;padding:60px;color:#999;display:none}
@@ -52,8 +52,12 @@ body{font-family:-apple-system,'Microsoft YaHei',sans-serif;background:#f0f2f5;c
         <input id="code" value="sh600519" placeholder="sh600519 / sz000001 / hk00700">
     </div>
     <div class="f">
-        <label>天数</label>
-        <input id="days" value="365" placeholder="365">
+        <label>开始日期</label>
+        <input id="start" type="date" value="2025-01-01">
+    </div>
+    <div class="f">
+        <label>结束日期</label>
+        <input id="end" type="date" value="2026-07-13">
     </div>
     <button onclick="q()">🔍 查询</button>
     <span class="hint">sh=沪市 sz=深市 hk=港股 us=美股</span>
@@ -86,17 +90,21 @@ function $(id){return document.getElementById(id)}
 
 async function q(){
     let code = $('code').value.trim();
-    let days = parseInt($('days').value) || 365;
+    let startDate = $('start').value;
+    let endDate = $('end').value;
     if(!code){se('请输入股票代码');return}
+    if(!startDate || !endDate){se('请选择起止日期');return}
     $('err').style.display='none';
     $('ct').style.display='none';
     $('load').style.display='block';
 
     try {
-        let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,${days},qfq`;
+        // 腾讯 API 格式: 2025-01-01 或 2025-01-01,2026-07-13
+        let dateParam = startDate + ',' + endDate;
+        let url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,${dateParam},,500,qfq`;
         let r = await fetch(url);
         let j = await r.json();
-        if(j.error || !j.data){se('未获取到数据，请检查股票代码格式');return}
+        if(!j.data){se('未获取到数据，请检查股票代码格式');console.log(j);return}
         
         // 找K线数据
         let d = j.data;
@@ -106,10 +114,10 @@ async function q(){
             if(d[k].day){kd=d[k].day;break}
             if(d[k].qfqday){kd=d[k].qfqday;break}
         }
-        // 试试其他结构
         if(!kd) for(let k of keys){if(Array.isArray(d[k])){kd=d[k];break}}
         if(!kd){se('无法解析数据格式');console.log(j);return}
         
+        if(kd.length === 0){se('该时间范围内无数据');return}
         rn(kd, code);
     } catch(e){
         se('请求失败: '+e.message);
