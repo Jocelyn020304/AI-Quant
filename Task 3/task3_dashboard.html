@@ -453,17 +453,17 @@ function renderBacktest(d){
                 const pct = i>0 ? (d.kline[i][1]-d.kline[i-1][1])/d.kline[i-1][1]*100 : 0;
                 return `<b>${dates[i]}</b><br/>开盘：${fmtP(d.kline[i][0])}<br/>收盘：<span style="color:${pct>=0?'#e63946':'#16a34a'};font-weight:600">${fmtP(d.kline[i][1])}</span><br/>最低：${fmtP(d.kline[i][2])}<br/>最高：${fmtP(d.kline[i][3])}<br/>MA${d.shortWin}：${d.maShort[i]!==null?d.maShort[i].toFixed(2):'-'}<br/>MA${d.longWin}：${d.maLong[i]!==null?d.maLong[i].toFixed(2):'-'}<br/>信号：${d.signal[i]===1?'买入':(d.signal[i]===-1?'卖出':'无')}`;
             }},
-        legend:{data:['K线',`MA${d.shortWin}`,`MA${d.longWin}`,'买入','卖出'],top:0},
-        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        legend:{data:[{name:'K线',icon:'roundRect'},{name:`MA${d.shortWin}`,icon:'roundRect'},{name:`MA${d.longWin}`,icon:'roundRect'},{name:'▲ 买入(金叉)',icon:'triangle'},{name:'▼ 卖出(死叉)',icon:'triangle'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
+        grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
         dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
         series:[
             {name:'K线',type:'candlestick',data:d.kline,itemStyle:{color:'#e63946',color0:'#16a34a',borderColor:'#e63946',borderColor0:'#16a34a'}},
-            {name:`MA${d.shortWin}`,type:'line',data:d.maShort,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#d62728'}},
-            {name:`MA${d.longWin}`,type:'line',data:d.maLong,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#1f77b4'}},
-            {name:'买入',type:'scatter',data:buyData,symbol:'triangle',symbolSize:12,itemStyle:{color:'#e63946'},z:10},
-            {name:'卖出',type:'scatter',data:sellData,symbol:'triangle',symbolSize:12,itemStyle:{color:'#16a34a'},symbolRotate:180,z:10}
+            {name:`MA${d.shortWin}`,type:'line',data:d.maShort,smooth:false,symbol:'none',lineStyle:{width:1.8,color:'#ff8c00',type:'solid'}},
+            {name:`MA${d.longWin}`,type:'line',data:d.maLong,smooth:false,symbol:'none',lineStyle:{width:1.8,color:'#1f77b4',type:'solid'}},
+            {name:'▲ 买入(金叉)',type:'scatter',data:buyData,symbol:'triangle',symbolSize:16,symbolOffset:[0,12],itemStyle:{color:'#facc15',borderColor:'#000000',borderWidth:1.2,opacity:1,shadowBlur:6,shadowColor:'rgba(0,0,0,0.45)'},z:20},
+            {name:'▼ 卖出(死叉)',type:'scatter',data:sellData,symbol:'triangle',symbolRotate:180,symbolSize:16,symbolOffset:[0,-12],itemStyle:{color:'#06b6d4',borderColor:'#000000',borderWidth:1.2,opacity:1,shadowBlur:6,shadowColor:'rgba(0,0,0,0.45)'},z:20}
         ]
     });
 
@@ -563,8 +563,8 @@ function renderParamCompare(data){
     const colors = ['#d62728','#1f77b4','#2ca02c','#ff7f0e','#9467bd','#8c564b','#e377c2','#7f7f7f'];
     chartParamCompare.setOption({
         tooltip:{trigger:'axis'},
-        legend:{data:results.map(r=>r.param),top:0},
-        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        legend:{data:results.map(r=>({name:r.param,icon:'roundRect'})),top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+        grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:data.dates,axisLabel:{fontSize:10,interval:Math.floor(data.dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
         dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
@@ -653,8 +653,8 @@ function renderStockCompare(data){
 
     chartStockCompare.setOption({
         tooltip:{trigger:'axis'},
-        legend:{data:[...validResults.map(r=>r.tsCode),'基准净值'],top:0},
-        grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+        legend:{data:[...validResults.map(r=>({name:r.tsCode,icon:'roundRect'})),{name:'基准净值',icon:'roundRect'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+        grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
         xAxis:{type:'category',data:allDates,axisLabel:{fontSize:10,interval:Math.floor(allDates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
         yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
         dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],

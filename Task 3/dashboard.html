@@ -550,17 +550,17 @@ function renderBacktest(code, rows, bt, shortWin, longWin){
       const i=p[0].dataIndex;
       return `<b>${dates[i]}</b><br/>开:${kline[i][0].toFixed(2)} 收:<span style="color:${bt.signal[i]===1?'#e63946':(bt.signal[i]===-1?'#16a34a':'')};font-weight:600">${kline[i][1].toFixed(2)}</span><br/>低:${kline[i][2].toFixed(2)} 高:${kline[i][3].toFixed(2)}<br/>MA${shortWin}:${bt.maShort[i]===null?'-':bt.maShort[i].toFixed(2)} MA${longWin}:${bt.maLong[i]===null?'-':bt.maLong[i].toFixed(2)}<br/>信号:${bt.signal[i]===1?'买入(金叉)':(bt.signal[i]===-1?'卖出(死叉)':'无')}`;
     }},
-    legend:{data:['K线',`MA${shortWin}`,`MA${longWin}`,'买入','卖出'],top:0},
-    grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+    legend:{data:[{name:'K线',icon:'roundRect'},{name:`MA${shortWin}`,icon:'roundRect'},{name:`MA${longWin}`,icon:'roundRect'},{name:'▲ 买入(金叉)',icon:'triangle'},{name:'▼ 卖出(死叉)',icon:'triangle'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:18,textStyle:{fontSize:12,lineHeight:14}},
+    grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{formatter:'¥{value}',color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
     dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
     series:[
       {name:'K线',type:'candlestick',data:kline,itemStyle:{color:'#e63946',color0:'#16a34a',borderColor:'#e63946',borderColor0:'#16a34a'}},
-      {name:`MA${shortWin}`,type:'line',data:bt.maShort,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#d62728'}},
-      {name:`MA${longWin}`,type:'line',data:bt.maLong,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#1f77b4'}},
-      {name:'买入',type:'scatter',data:buyIdx.map(i=>[dates[i],kline[i][3]]),symbol:'triangle',symbolSize:12,itemStyle:{color:'#e63946'},z:10},
-      {name:'卖出',type:'scatter',data:sellIdx.map(i=>[dates[i],kline[i][2]]),symbol:'triangle',symbolSize:12,itemStyle:{color:'#16a34a'},symbolRotate:180,z:10}
+      {name:`MA${shortWin}`,type:'line',data:bt.maShort,smooth:false,symbol:'none',lineStyle:{width:1.8,color:'#ff8c00',type:'solid'}},
+      {name:`MA${longWin}`,type:'line',data:bt.maLong,smooth:false,symbol:'none',lineStyle:{width:1.8,color:'#1f77b4',type:'solid'}},
+      {name:'▲ 买入(金叉)',type:'scatter',data:buyIdx.map(i=>[dates[i],kline[i][3]]),symbol:'triangle',symbolSize:16,symbolOffset:[0,12],itemStyle:{color:'#facc15',borderColor:'#000000',borderWidth:1.2,opacity:1,shadowBlur:6,shadowColor:'rgba(0,0,0,0.45)'},z:20},
+      {name:'▼ 卖出(死叉)',type:'scatter',data:sellIdx.map(i=>[dates[i],kline[i][2]]),symbol:'triangle',symbolRotate:180,symbolSize:16,symbolOffset:[0,-12],itemStyle:{color:'#06b6d4',borderColor:'#000000',borderWidth:1.2,opacity:1,shadowBlur:6,shadowColor:'rgba(0,0,0,0.45)'},z:20}
     ]
   });
 
@@ -601,7 +601,12 @@ function renderBacktest(code, rows, bt, shortWin, longWin){
     }</tbody></table>`;
   document.getElementById('signalMeta').textContent = `共${sigRows.length}条信号 · 买入${m.nBuy}次 · 卖出${m.nSell}次`;
 
-  window.addEventListener('resize',()=>{chartMain&&chartMain.resize();chartEquity&&chartEquity.resize();chartDrawdown&&chartDrawdown.resize();});
+  // 用 setTimeout 延后触发，确保容器尺寸先稳定
+  setTimeout(()=>{
+    chartMain&&chartMain.resize();
+    chartEquity&&chartEquity.resize();
+    chartDrawdown&&chartDrawdown.resize();
+  },50);
 }
 
 /* ================= 参数对比 ================= */
@@ -653,8 +658,8 @@ function renderParamCompare(results, dates, bestIdx){
   chartParamCompare = echarts.init(document.getElementById('chartParamCompare'));
   chartParamCompare.setOption({
     tooltip:{trigger:'axis'},
-    legend:{data:results.map(r=>r.label),top:0},
-    grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+    legend:{data:results.map(r=>({name:r.label,icon:'roundRect'})),top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+    grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:dates,axisLabel:{fontSize:10,interval:Math.floor(dates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
     dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
@@ -664,7 +669,7 @@ function renderParamCompare(results, dates, bestIdx){
       name:'基准净值',type:'line',data:dates.map(()=>1),lineStyle:{color:'#999',type:'dashed',width:1},silent:true,symbol:'none'
     }])
   });
-  window.addEventListener('resize',()=>chartParamCompare&&chartParamCompare.resize());
+  setTimeout(()=>chartParamCompare&&chartParamCompare.resize(),50);
 }
 
 /* ================= 股票对比 ================= */
@@ -730,8 +735,8 @@ function renderStockCompare(results, shortWin, longWin){
   chartStockCompare = echarts.init(document.getElementById('chartStockCompare'));
   chartStockCompare.setOption({
     tooltip:{trigger:'axis'},
-    legend:{data:[...valid.map(r=>r.code),'基准净值'],top:0},
-    grid:{left:'8%',right:'4%',top:'12%',bottom:'10%'},
+    legend:{data:[...valid.map(r=>({name:r.code,icon:'roundRect'})),{name:'基准净值',icon:'roundRect'}],top:8,left:'center',itemWidth:16,itemHeight:10,itemGap:14,textStyle:{fontSize:12}},
+    grid:{left:'1%',right:'2%',top:'40',bottom:'50',containLabel:true},
     xAxis:{type:'category',data:allDates,axisLabel:{fontSize:10,interval:Math.floor(allDates.length/10)},axisLine:{lineStyle:{color:'#e6e8eb'}}},
     yAxis:{type:'value',scale:true,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
     dataZoom:[{type:'inside'},{type:'slider',height:18,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
@@ -749,7 +754,7 @@ function renderStockCompare(results, shortWin, longWin){
       name:'基准净值',type:'line',data:allDates.map(()=>1),lineStyle:{color:'#999',type:'dashed',width:1},silent:true,symbol:'none'
     }])
   });
-  window.addEventListener('resize',()=>chartStockCompare&&chartStockCompare.resize());
+  setTimeout(()=>chartStockCompare&&chartStockCompare.resize(),50);
 }
 
 /* ================= 默认加载 ================= */
