@@ -906,8 +906,14 @@ function renderRSI(dates, rsi, period){
           {yAxis:20,lineStyle:{color:'#16a34a',type:'dashed'},label:{formatter:'超卖 20',color:'#16a34a'}}
         ]},
         markArea:{silent:true,data:[
-          [{yAxis:80,name:'超买区',itemStyle:{color:'rgba(230,57,70,0.05)'}}],
-          [{yAxis:20,name:'超卖区',itemStyle:{color:'rgba(22,163,74,0.05)'}}]
+          [
+            {name:'超买区',yAxis:80,itemStyle:{color:'rgba(230,57,70,0.05)'}},
+            {yAxis:100}
+          ],
+          [
+            {name:'超卖区',yAxis:0,itemStyle:{color:'rgba(22,163,74,0.05)'}},
+            {yAxis:20}
+          ]
         ]}
       }
     ]
@@ -971,13 +977,12 @@ function renderKDJ(dates, kdj, n){
     yAxis:{type:'value',min:0,max:100,axisLabel:{color:'#4e5969'},splitLine:{lineStyle:{color:'#f0f1f3'}}},
     dataZoom:[{type:'inside'},{type:'slider',height:14,bottom:2,borderColor:'#c9cdd4',fillerColor:'rgba(51,112,255,0.1)'}],
     series:[
-      {name:'K',type:'line',data:kArr,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#3370ff'}},
+      {name:'K',type:'line',data:kArr,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#3370ff'},markLine:{silent:true,data:[
+        {yAxis:80,lineStyle:{color:'#e63946',type:'dashed'},label:{formatter:'超买 80',color:'#e63946',position:'insideEndTop'}},
+        {yAxis:20,lineStyle:{color:'#16a34a',type:'dashed'},label:{formatter:'超卖 20',color:'#16a34a',position:'insideEndBottom'}}
+      ]}},
       {name:'D',type:'line',data:dArr,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#f59e0b'}},
-      {name:'J',type:'line',data:jArr,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#9333ea',type:'dashed'}},
-      {name:'超买超卖',type:'line',data:[],markLine:{silent:true,data:[
-        {yAxis:80,lineStyle:{color:'#e63946',type:'dashed'},label:{formatter:'超买 80',color:'#e63946'}},
-        {yAxis:20,lineStyle:{color:'#16a34a',type:'dashed'},label:{formatter:'超卖 20',color:'#16a34a'}}
-      ]}}
+      {name:'J',type:'line',data:jArr,smooth:false,symbol:'none',lineStyle:{width:1.5,color:'#9333ea',type:'dashed'}}
     ]
   });
 }
