@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 import tushare as ts
 import pandas as pd
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, request, jsonify
 
 # ===== 配置 =====
 TOKEN = os.environ.get(
@@ -289,6 +289,92 @@ def apply_adjustment(df: pd.DataFrame, adj_type: str) -> pd.DataFrame:
     return df
 
 
+def calc_diagnosis(df: pd.DataFrame) -> dict:
+    """
+    数据诊断：缺失值检查 + 描述性统计量。
+    返回:
+      - missing: 各列的缺失值数量与占比
+      - describe: 数值列的描述性统计（count/mean/std/min/25%/50%/75%/max）
+      - outliers: 基于 3σ 的异常值检测
+      - date_range: 数据日期范围与连续性
+    """
+    # 缺失值检查
+    missing = {}
+    total = len(df)
+    for col in df.columns:
+        n_missing = int(df[col].isna().sum())
+        if n_missing > 0:
+            missing[col] = {
+                "count": n_missing,
+                "pct": round(n_missing / total * 100, 2),
+            }
+
+    # 描述性统计（只对数值列）
+    numeric_cols = [c for c in ["open", "high", "low", "close", "vol", "amount", "pct_chg", "change"] if c in df.columns]
+    describe = {}
+    for col in numeric_cols:
+        s = df[col].astype(float)
+        describe[col] = {
+            "count": int(s.count()),
+            "mean": round(float(s.mean()), 4),
+            "std": round(float(s.std()), 4),
+            "min": round(float(s.min()), 4),
+            "q25": round(float(s.quantile(0.25)), 4),
+            "q50": round(float(s.quantile(0.50)), 4),
+            "q75": round(float(s.quantile(0.75)), 4),
+            "max": round(float(s.max()), 4),
+        }
+
+    # 异常值检测（3σ 准则）
+    outliers = {}
+    for col in ["open", "high", "low", "close", "vol", "pct_chg"]:
+        if col not in df.columns:
+            continue
+        s = df[col].astype(float)
+        mean = s.mean()
+        std = s.std()
+        if std == 0 or pd.isna(std):
+            continue
+        upper = mean + 3 * std
+        lower = mean - 3 * std
+        n_out = int(((s > upper) | (s < lower)).sum())
+        if n_out > 0:
+            outliers[col] = {
+                "count": n_out,
+                "pct": round(n_out / total * 100, 2),
+                "upper": round(float(upper), 4),
+                "lower": round(float(lower), 4),
+            }
+
+    # 日期连续性
+    dates = pd.to_datetime(df["trade_date"], format="%Y%m%d").sort_values()
+    if len(dates) >= 2:
+        diffs = dates.diff().dropna()
+        # 正常 A 股交易日间隔 = 1, 2, 3 天（跨周末 / 节假日）
+        normal_gaps = int((diffs.dt.days <= 3).sum())
+        abnormal_gaps = int((diffs.dt.days > 3).sum())
+        max_gap = int(diffs.dt.days.max())
+    else:
+        normal_gaps = abnormal_gaps = max_gap = 0
+
+    return {
+        "missing": missing,
+        "missingTotal": int(df.isna().any(axis=1).sum()),
+        "describe": describe,
+        "outliers": outliers,
+        "outliersTotal": sum(v["count"] for v in outliers.values()),
+        "dateRange": {
+            "start": str(dates.iloc[0])[:10] if len(dates) > 0 else None,
+            "end": str(dates.iloc[-1])[:10] if len(dates) > 0 else None,
+            "days": int((dates.iloc[-1] - dates.iloc[0]).days) if len(dates) >= 2 else 0,
+            "tradingDays": int(len(dates)),
+            "normalGaps": normal_gaps,
+            "abnormalGaps": abnormal_gaps,
+            "maxGap": max_gap,
+        },
+    }
+
+
 def calc_indicators(df: pd.DataFrame, rsi_period: int = 14,
                     macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9,
                     bb_period: int = 20, bb_k: float = 2.0,
@@ -398,12 +484,12 @@ def calc_indicators(df: pd.DataFrame, rsi_period: int = 14,
 def index():
     """直接渲染 Task 2 看板页面。"""
     try:
-        with open(os.path.join(os.path.dirname(__file__), "task2_dashboard.html"),
+        with open(os.path.join(os.path.dirname(__file__), "dashboard.html"),
                   "r", encoding="utf-8") as f:
             html = f.read()
         return html
     except Exception as e:
-        return f"<h1>Task 2 看板</h1><p>加载页面失败: {e}</p><p>请确认 task2_dashboard.html 存在。</p>"
+        return f"<h1>Task 2 看板</h1><p>加载页面失败: {e}</p><p>请确认 dashboard.html 存在。</p>"
 
 
 @app.route("/api/search")
@@ -428,6 +514,39 @@ def api_search():
 
     matched.sort(key=sort_key)
     return jsonify({"stocks": matched[:15]})
+
+
+@app.route("/api/diagnosis")
+def api_diagnosis():
+    """
+    数据诊断：缺失值 + 描述性统计 + 异常值检测。
+    参数同 /api/indicators。
+    """
+    tscode = request.args.get("tscode", "").strip()
+    if not tscode:
+        return jsonify({"error": "请提供股票代码"})
+
+    try:
+        adj_type = request.args.get("adj", "qfq").strip().lower()
+        if adj_type not in ("none", "qfq", "hfq"):
+            adj_type = "qfq"
+
+        resolved = resolve_tscode(tscode)
+        df = fetch_daily(
+            resolved,
+            start_date=request.args.get("start_date") or None,
+            end_date=request.args.get("end_date") or None,
+        )
+        df.attrs["adj_type"] = adj_type
+        df = apply_adjustment(df, adj_type)
+
+        diag = calc_diagnosis(df)
+        diag["tsCode"] = df.iloc[0]["ts_code"]
+        return jsonify(diag)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)})
 
 
 @app.route("/api/indicators")
