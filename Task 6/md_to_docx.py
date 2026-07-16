@@ -205,7 +205,6 @@ def add_table_from_markdown(table_lines):
             set_cell_margins(cell); p = cell.paragraphs[0]; p.clear()
             pf = p.paragraph_format; pf.line_spacing = 1.0; pf.space_before = Pt(0); pf.space_after = Pt(0)
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER; run = p.add_run(cell_text.replace('**', '')); set_run_font(run, size=Pt(9))
-            if i == 0: run.font.bold = True
     doc.add_paragraph()
 
 # ---------- 解析 Markdown ----------
