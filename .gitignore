@@ -18,5 +18,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# WorkBuddy 工作空间
-.workbuddy/
+# Task 缓存
+.daily_cache/
+.stock_cache.json
+.task*_stock_cache.json
