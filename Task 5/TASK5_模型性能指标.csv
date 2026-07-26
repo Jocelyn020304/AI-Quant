@@ -1,0 +1,4 @@
+﻿模型,准确率 Accuracy,精确率 Precision,召回率 Recall,F1 分数,AUC
+逻辑回归 (Logistic Regression),0.9825,0.9815,0.9907,0.986,0.998
+决策树 (Decision Tree),0.9298,0.9439,0.9439,0.9439,0.9441
+随机森林 (Random Forest),0.9357,0.9444,0.9533,0.9488,0.9913

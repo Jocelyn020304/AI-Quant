@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TASK5 — AI交易引擎：机器学习算法与场景应用</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif; background:#f5f6fa; color:#333; line-height:1.7; }
+
+.header { background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460); color:#fff; padding:48px 20px 40px; text-align:center; }
+.header h1 { font-size:26px; margin-bottom:8px; letter-spacing:1px; }
+.header p { font-size:14px; opacity:.75; }
+.header .badge { display:inline-block; background:rgba(255,255,255,.15); border-radius:20px; padding:4px 16px; font-size:12px; margin-top:12px; }
+
+.container { max-width:960px; margin:0 auto; padding:24px 20px 60px; }
+
+.card { background:#fff; border-radius:12px; padding:28px 24px; margin-bottom:22px; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+.card h2 { font-size:18px; color:#1a1a2e; margin-bottom:4px; border-left:4px solid #0f3460; padding-left:12px; }
+.card .subtitle { font-size:13px; color:#888; margin-bottom:18px; padding-left:16px; }
+
+.figure { text-align:center; margin:20px 0; }
+.figure img { max-width:100%; height:auto; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.1); }
+.fig-caption { font-size:13px; color:#666; margin-top:10px; }
+
+/* metrics table */
+.metrics-table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+.metrics-table th { background:#1a1a2e; color:#fff; padding:11px 10px; text-align:center; font-weight:600; }
+.metrics-table td { padding:10px; text-align:center; border-bottom:1px solid #eee; }
+.metrics-table tr:hover td { background:#f8f9ff; }
+.metrics-table .best { color:#c0392b; font-weight:700; }
+
+/* key points */
+.key-points { list-style:none; padding:0; }
+.key-points li { padding:10px 0 10px 32px; position:relative; border-bottom:1px dashed #eee; }
+.key-points li:last-child { border-bottom:none; }
+.key-points li::before { content:'✦'; position:absolute; left:0; top:10px; color:#0f3460; font-size:15px; }
+.key-points li strong { color:#1a1a2e; }
+
+.footer { text-align:center; padding:30px; color:#bbb; font-size:12px; }
+.footer a { color:#0f3460; text-decoration:none; }
+
+@media(max-width:768px) {
+    .header h1 { font-size:20px; } .container { padding:16px 12px 40px; }
+    .card { padding:20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🤖 TASK5 — 机器学习算法与场景应用</h1>
+    <p>AI交易引擎：分类模型 · ROC/AUC · 混淆矩阵</p>
+    <div class="badge">scikit-learn · 乳腺癌诊断数据集 · 三模型对比</div>
+</div>
+
+<div class="container">
+
+    <!-- 概览 -->
+    <div class="card">
+        <h2>实验概览</h2>
+        <p class="subtitle">数据集 &amp; 模型配置</p>
+        <ul class="key-points" style="margin-top:8px;">
+            <li><strong>数据集：</strong>sklearn load_breast_cancer（乳腺癌诊断，569样本×30特征，二分类）</li>
+            <li><strong>划分：</strong>训练集398 / 测试集171（70:30分层抽样，random_state=42）</li>
+            <li><strong>预处理：</strong>Z-Score 标准化（仅训练集拟合参数）</li>
+            <li><strong>三模型：</strong>逻辑回归(LR) / 决策树(DT, max_depth=5) / 随机森林(RF, n=100)</li>
+        </ul>
+
+        <table class="metrics-table">
+            <thead>
+                <tr><th>模型</th><th>准确率</th><th>精确率</th><th>召回率</th><th>F1分数</th><th>AUC</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>逻辑回归 (Logistic Regression)</td><td>0.9825</td><td>0.9815</td><td>0.9907</td><td>0.9860</td><td class="best">0.9980</td></tr>
+                <tr><td>随机森林 (Random Forest)</td><td>0.9357</td><td>0.9444</td><td>0.9533</td><td>0.9488</td><td>0.9913</td></tr>
+                <tr><td>决策树 (Decision Tree)</td><td>0.9298</td><td>0.9439</td><td>0.9439</td><td>0.9439</td><td>0.9441</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ROC 曲线 -->
+    <div class="card">
+        <h2>ROC 曲线对比</h2>
+        <p class="subtitle">三模型在测试集上的受试者工作特征曲线</p>
+        <div class="figure">
+            <img src="TASK5_三模型ROC曲线对比.png" alt="ROC Curve Comparison">
+            <p class="fig-caption">图1：逻辑回归 AUC≈0.998 几乎完美；随机森林 AUC=0.991 紧随其后；决策树 AUC=0.944 表现良好但相对较弱。</p>
+        </div>
+    </div>
+
+    <!-- 混淆矩阵 -->
+    <div class="card">
+        <h2>混淆矩阵热力图</h2>
+        <p class="subtitle">三模型预测结果 vs 真实标签的交叉分布</p>
+        <div class="figure">
+            <img src="TASK5_混淆矩阵热力图.png" alt="Confusion Matrix Heatmap">
+            <p class="fig-caption">图2：逻辑回归仅3例误判(1.75%)；决策树和随机森林分别有12/11例误判。颜色越深表示该格样本数越多。</p>
+        </div>
+    </div>
+
+    <!-- 核心结论 -->
+    <div class="card">
+        <h2>核心结论</h2>
+        <p class="subtitle">实验发现与金融场景启示</p>
+        <ul class="key-points">
+            <li><strong>线性可分性极佳：</strong>乳腺癌数据集的特征经过精心设计后呈现强线性可分性，使得逻辑回归取得了接近完美的分类表现（AUC=0.998）。在金融风控中，如果特征工程得当，简单模型同样可以成为强有力的基线。</li>
+            <li><strong>AUC > 准确率：</strong>随机森林的准确率(93.57%)仅比决策树高0.59个百分点，但AUC高出4.72个点(0.991 vs 0.944)。这证明AUC作为阈值无关指标能更全面地反映模型的概率校准能力——对金融业务中的阈值选择具有关键指导意义。</li>
+            <li><strong>模型选型需匹配业务约束：</strong>追求精度→集成方法；需要解释性→决策树/规则抽取；快速迭代原型→逻辑回归。三者各有适用场景，不存在绝对的最优模型。</li>
+            <li><strong>金融映射：</strong>FN（漏检违约）代价通常远大于 FP（误拒正常客户），因此在风控实践中应优先关注召回率和AUC而非单纯准确率。</li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="footer">
+    <a href="../index.html">← 返回总览页</a> &nbsp;|&nbsp;
+    量化交易：AI大模型辅助的金融交易策略 — Task 5
+</div>
+
+</body>
+</html>

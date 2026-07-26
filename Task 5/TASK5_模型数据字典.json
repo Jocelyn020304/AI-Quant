@@ -1,0 +1,105 @@
+{
+  "dataset": "load_breast_cancer",
+  "n_samples": 569,
+  "n_features": 30,
+  "test_size": 0.3,
+  "random_state": 42,
+  "target_names": [
+    "malignant",
+    "benign"
+  ],
+  "feature_names": [
+    "mean radius",
+    "mean texture",
+    "mean perimeter",
+    "mean area",
+    "mean smoothness",
+    "mean compactness",
+    "mean concavity",
+    "mean concave points",
+    "mean symmetry",
+    "mean fractal dimension",
+    "radius error",
+    "texture error",
+    "perimeter error",
+    "area error",
+    "smoothness error",
+    "compactness error",
+    "concavity error",
+    "concave points error",
+    "symmetry error",
+    "fractal dimension error",
+    "worst radius",
+    "worst texture",
+    "worst perimeter",
+    "worst area",
+    "worst smoothness",
+    "worst compactness",
+    "worst concavity",
+    "worst concave points",
+    "worst symmetry",
+    "worst fractal dimension"
+  ],
+  "results": [
+    {
+      "name": "logistic",
+      "label": "逻辑回归 (Logistic Regression)",
+      "color": "#1f77b4",
+      "accuracy": 0.9824561403508771,
+      "precision": 0.9814814814814815,
+      "recall": 0.9906542056074766,
+      "f1": 0.986046511627907,
+      "auc": 0.9979556074766355,
+      "confusion_matrix": [
+        [
+          62,
+          2
+        ],
+        [
+          1,
+          106
+        ]
+      ]
+    },
+    {
+      "name": "decision_tree",
+      "label": "决策树 (Decision Tree)",
+      "color": "#ff7f0e",
+      "accuracy": 0.9298245614035088,
+      "precision": 0.9439252336448598,
+      "recall": 0.9439252336448598,
+      "f1": 0.9439252336448598,
+      "auc": 0.9441442757009346,
+      "confusion_matrix": [
+        [
+          58,
+          6
+        ],
+        [
+          6,
+          101
+        ]
+      ]
+    },
+    {
+      "name": "random_forest",
+      "label": "随机森林 (Random Forest)",
+      "color": "#2ca02c",
+      "accuracy": 0.935672514619883,
+      "precision": 0.9444444444444444,
+      "recall": 0.9532710280373832,
+      "f1": 0.9488372093023256,
+      "auc": 0.991311331775701,
+      "confusion_matrix": [
+        [
+          58,
+          6
+        ],
+        [
+          5,
+          102
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TASK5 — 机器学习分类算法交互式看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif; background:#eef0f5; color:#2c2c34; line-height:1.7; }
+.header { background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460); color:#fff; padding:46px 20px 38px; text-align:center; }
+.header h1 { font-size:26px; margin-bottom:8px; letter-spacing:1px; }
+.header p { font-size:14px; opacity:.78; }
+.header .badge { display:inline-block; background:rgba(255,255,255,.15); border-radius:20px; padding:5px 16px; font-size:12px; margin-top:14px; }
+.container { max-width:1080px; margin:0 auto; padding:24px 20px 60px; }
+.card { background:#fff; border-radius:14px; padding:26px 24px; margin-bottom:22px; box-shadow:0 2px 14px rgba(0,0,0,.06); }
+.card h2 { font-size:18px; color:#1a1a2e; margin-bottom:4px; border-left:4px solid #0f3460; padding-left:12px; }
+.card .subtitle { font-size:13px; color:#8a8a99; margin-bottom:18px; padding-left:16px; }
+.step-tag { display:inline-block; background:#0f3460; color:#fff; font-size:12px; border-radius:6px; padding:2px 10px; margin-right:8px; }
+/* upload */
+.upload-box { border:2px dashed #c5cad6; border-radius:12px; padding:34px 20px; text-align:center; cursor:pointer; transition:.2s; background:#fafbfd; }
+.upload-box:hover { border-color:#0f3460; background:#f2f6ff; }
+.upload-box .icon { font-size:40px; }
+.upload-box .hint { font-size:13px; color:#8a8a99; margin-top:8px; }
+.btn { display:inline-block; background:#0f3460; color:#fff; border:none; border-radius:8px; padding:11px 26px; font-size:14px; cursor:pointer; transition:.2s; }
+.btn:hover { background:#16508c; }
+.btn.ghost { background:#fff; color:#0f3460; border:1px solid #0f3460; }
+.btn.ghost:hover { background:#f2f6ff; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.row { display:flex; flex-wrap:wrap; gap:18px; }
+.field { flex:1 1 220px; min-width:200px; }
+.field label { display:block; font-size:13px; color:#555; margin-bottom:6px; font-weight:600; }
+.field select, .field input[type=number], .field input[type=text] { width:100%; padding:9px 10px; border:1px solid #d4d8e0; border-radius:8px; font-size:14px; background:#fff; }
+input[type=range] { width:100%; }
+.check-grid { display:flex; flex-wrap:wrap; gap:10px 18px; }
+.check-grid label { display:flex; align-items:center; gap:6px; font-size:14px; background:#f4f6fa; border:1px solid #e2e6ee; padding:8px 12px; border-radius:8px; cursor:pointer; }
+.check-grid label:hover { border-color:#0f3460; }
+.info-pill { display:inline-block; background:#eef3fb; color:#0f3460; border-radius:6px; padding:3px 10px; font-size:12px; margin:3px 6px 3px 0; }
+.feat-list { margin-top:8px; line-height:2.2; }
+/* metrics table */
+.metrics-table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; }
+.metrics-table th { background:#1a1a2e; color:#fff; padding:11px 8px; text-align:center; font-weight:600; }
+.metrics-table td { padding:10px 8px; text-align:center; border-bottom:1px solid #eee; }
+.metrics-table tr:hover td { background:#f7f9ff; }
+.metrics-table .best { color:#c0392b; font-weight:800; }
+.metrics-table .mname { text-align:left; font-weight:600; }
+/* charts */
+#rocChart { width:100%; height:420px; }
+.cm-grid { display:flex; flex-wrap:wrap; gap:18px; margin-top:10px; }
+.cm-item { flex:1 1 280px; min-width:260px; border:1px solid #eef0f5; border-radius:10px; padding:12px; background:#fcfdff; }
+.cm-item h4 { font-size:14px; color:#1a1a2e; margin-bottom:6px; text-align:center; }
+.cm-chart { width:100%; height:260px; }
+/* conclusions */
+.key-points { list-style:none; padding:0; margin-top:6px; }
+.key-points li { padding:11px 0 11px 34px; position:relative; border-bottom:1px dashed #eee; font-size:14px; }
+.key-points li:last-child { border-bottom:none; }
+.key-points li::before { content:'✦'; position:absolute; left:4px; top:11px; color:#0f3460; font-size:15px; }
+.key-points li strong { color:#1a1a2e; }
+/* status / log */
+#status { margin-top:14px; font-size:13px; color:#0f3460; min-height:20px; }
+#log { background:#0f1726; color:#9fe6c4; font-family:'Consolas',monospace; font-size:12.5px; border-radius:10px; padding:14px 16px; margin-top:14px; max-height:220px; overflow:auto; white-space:pre-wrap; display:none; }
+#log.show { display:block; }
+.overlay { position:fixed; inset:0; background:rgba(15,26,38,.55); display:none; align-items:center; justify-content:center; z-index:50; }
+.overlay.show { display:flex; }
+.overlay .box { background:#fff; border-radius:14px; padding:30px 44px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.3); }
+.overlay .spin { width:42px; height:42px; border:4px solid #e2e6ee; border-top-color:#0f3460; border-radius:50%; animation:sp .9s linear infinite; margin:0 auto 14px; }
+@keyframes sp { to { transform:rotate(360deg); } }
+.hidden { display:none !important; }
+.note { font-size:12.5px; color:#8a8a99; margin-top:10px; }
+.footer { text-align:center; padding:30px; color:#aaa; font-size:12px; }
+.footer a { color:#0f3460; text-decoration:none; }
+.err { color:#c0392b; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🤖 TASK5 — 机器学习分类算法交互式看板</h1>
+    <p>AI交易引擎：上传数据 · 自定义预处理与划分 · 多模型对比 · ROC / 混淆矩阵</p>
+    <div class="badge">纯前端运行（数据不出本机）· 逻辑回归 / 决策树 / 随机森林 / K近邻 / 朴素贝叶斯 / SVM</div>
+</div>
+
+<div class="container">
+
+    <!-- 步骤1：数据源 -->
+    <div class="card">
+        <h2><span class="step-tag">STEP 1</span>选择数据源</h2>
+        <p class="subtitle">上传本地 CSV 文件，或使用内置示例数据集快速体验</p>
+        <label class="upload-box" for="fileInput" id="uploadBox">
+            <div class="icon">📂</div>
+            <div style="font-size:15px;color:#1a1a2e;margin-top:6px;">点击或拖拽上传 CSV 文件</div>
+            <div class="hint">支持逗号 / 分号 / 制表符分隔；首行为表头；需含一个分类标签列（二分类或最多少量多分类）</div>
+        </label>
+        <input type="file" id="fileInput" accept=".csv,.txt,.tsv" class="hidden">
+        <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <button class="btn ghost" id="exampleBtn">⚡ 加载示例数据集</button>
+            <span id="dataInfo" class="info-pill hidden"></span>
+        </div>
+        <div id="status"></div>
+        <div id="log"></div>
+    </div>
+
+    <!-- 步骤2：配置 -->
+    <div class="card hidden" id="configCard">
+        <h2><span class="step-tag">STEP 2</span>实验配置</h2>
+        <p class="subtitle">指定标签列、划分比例、预处理方式，并勾选要对比的机器学习方法</p>
+
+        <div class="row" style="margin-bottom:18px;">
+            <div class="field">
+                <label>目标标签列（分类列）</label>
+                <select id="targetSelect"></select>
+            </div>
+            <div class="field">
+                <label>训练集占比 <span id="ratioVal">70%</span></label>
+                <input type="range" id="trainRatio" min="0.5" max="0.9" step="0.05" value="0.7">
+            </div>
+            <div class="field">
+                <label>随机种子</label>
+                <input type="number" id="seedInput" value="42" min="0" step="1">
+            </div>
+        </div>
+
+        <div class="row" style="margin-bottom:18px;">
+            <div class="field">
+                <label>预处理方式</label>
+                <select id="preprocess">
+                    <option value="std">Z-Score 标准化（推荐）</option>
+                    <option value="minmax">Min-Max 归一化 [0,1]</option>
+                    <option value="none">不做预处理</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>分层抽样（按标签比例）</label>
+                <select id="stratified">
+                    <option value="1">开启（推荐）</option>
+                    <option value="0">关闭（纯随机）</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>K近邻 k 值</label>
+                <input type="number" id="knnK" value="5" min="1" step="1">
+            </div>
+            <div class="field">
+                <label>随机森林 树数量</label>
+                <input type="number" id="rfTrees" value="100" min="10" step="10">
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;font-size:13px;color:#555;font-weight:600;">机器学习方法（可多选，勾选几项即生成几项对比）</div>
+        <div class="check-grid" id="modelChecks">
+            <label><input type="checkbox" value="lr" checked> 逻辑回归 Logistic</label>
+            <label><input type="checkbox" value="rf" checked> 随机森林 RF</label>
+            <label><input type="checkbox" value="dt"> 决策树 Decision Tree</label>
+            <label><input type="checkbox" value="knn"> K近邻 KNN</label>
+            <label><input type="checkbox" value="nb"> 朴素贝叶斯 NB</label>
+            <label><input type="checkbox" value="svm"> 支持向量机 SVM</label>
+        </div>
+
+        <div class="feat-list" id="featList"></div>
+
+        <div style="margin-top:20px;">
+            <button class="btn" id="runBtn">🚀 运行分析</button>
+        </div>
+    </div>
+
+    <!-- 步骤3：结果 -->
+    <div class="card hidden" id="resultCard">
+        <h2><span class="step-tag">STEP 3</span>模型结果对比</h2>
+        <p class="subtitle" id="resultSub"></p>
+
+        <h3 style="font-size:15px;color:#1a1a2e;margin:6px 0 2px;">① 性能指标对比</h3>
+        <div style="overflow-x:auto;">
+            <table class="metrics-table" id="metricsTable"></table>
+        </div>
+
+        <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">② ROC 曲线对比</h3>
+        <div id="rocChart"></div>
+        <div class="note" id="rocNote"></div>
+
+        <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">③ 混淆矩阵热力图（每个模型一张）</h3>
+        <div class="cm-grid" id="cmGrid"></div>
+
+        <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">④ 核心结论（自动生成）</h3>
+        <ul class="key-points" id="conclusions"></ul>
+    </div>
+
+    <div class="footer">
+        <a href="../index.html">← 返回总览页</a> &nbsp;|&nbsp;
+        <a href="task5_report.html">📄 查看实验报告（静态版）</a> &nbsp;|&nbsp;
+        量化交易：AI大模型辅助的金融交易策略 — Task 5
+    </div>
+</div>
+
+<div class="overlay" id="overlay">
+    <div class="box">
+        <div class="spin"></div>
+        <div id="overlayText" style="font-size:14px;color:#1a1a2e;">正在训练模型…</div>
+    </div>
+</div>
+
+<script src="ml_engine.js"></script>
+<script>
+(function(){
+  const E = window.MLEngine;
+  let DATA = null;        // {header, rows}
+  let numericCols = [];   // 数值列索引
+  let targetIdx = -1;
+  let charts = [];        // echarts 实例
+
+  const $ = id => document.getElementById(id);
+  const statusEl = $("status");
+  const logEl = $("log");
+
+  function setStatus(msg, isErr){ statusEl.innerHTML = msg ? (isErr?`<span class="err">${msg}</span>`:msg) : ""; }
+  function log(msg){ logEl.classList.add("show"); logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+  function clearLog(){ logEl.textContent = ""; }
+
+  function isNumeric(str){ if(str==null) return false; const s=String(str).trim(); if(s==="") return false; return isFinite(Number(s)); }
+
+  /* ---------- 数据载入 ---------- */
+  function ingest(text, sourceName){
+    clearLog();
+    const rows = E.parseCSV(text);
+    if(rows.length < 3){ setStatus("CSV 行数过少，无法建模。", true); return; }
+    const header = rows[0].map((h,i)=> h.trim() || ("col"+i));
+    const data = rows.slice(1);
+    // 数值列检测
+    numericCols = [];
+    for(let j=0;j<header.length;j++){
+      let ok=true;
+      for(let i=0;i<Math.min(data.length,200);i++){ if(!isNumeric(data[i][j])){ ok=false; break; } }
+      if(ok) numericCols.push(j);
+    }
+    DATA = { header, rows: data };
+    // 默认目标列：名称命中 / 最后一列
+    let def = header.length-1;
+    const names = header.map(h=>h.toLowerCase());
+    const hit = names.findIndex(n=> /^(label|target|y|class|cls|类别|标签|目标)$/.test(n));
+    if(hit>=0) def = hit;
+    targetIdx = def;
+
+    // 填充下拉
+    const sel = $("targetSelect");
+    sel.innerHTML = "";
+    header.forEach((h,i)=>{
+      const o=document.createElement("option");
+      o.value=i; o.textContent = h + (numericCols.includes(i)?"":"（非数值，将自动编码）");
+      if(i===def) o.selected=true;
+      sel.appendChild(o);
+    });
+
+    // 特征列表（数值列且非目标）
+    renderFeatList();
+
+    $("dataInfo").classList.remove("hidden");
+    $("dataInfo").textContent = `样本 ${data.length} 行 · ${header.length} 列 · 数值列 ${numericCols.length} 个`;
+    $("configCard").classList.remove("hidden");
+    setStatus(`已载入「${sourceName}」：${data.length} 条样本，请在下方的配置区选择标签列与模型，然后点击「运行分析」。`, false);
+    log(`[数据] 来源=${sourceName} 样本数=${data.length} 列数=${header.length} 数值列=${numericCols.length}`);
+  }
+
+  function renderFeatList(){
+    const t = parseInt($("targetSelect").value,10);
+    const feats = numericCols.filter(j=>j!==t).map(j=>DATA.header[j]);
+    const nonNum = DATA.header.filter((_,j)=>!numericCols.includes(j) && j!==t);
+    let html = `<span style="font-size:13px;color:#555;font-weight:600;">参与建模的特征列（${feats.length} 个）：</span> `;
+    feats.forEach(f=> html += `<span class="info-pill">${f}</span>`);
+    if(nonNum.length){
+      html += `<div class="note">⚠️ 以下非数值列已自动排除：${nonNum.join("、")}（若需使用，请先做编码/数值化）。</div>`;
+    }
+    $("featList").innerHTML = html;
+  }
+
+  $("targetSelect").addEventListener("change", ()=>{ targetIdx=parseInt($("targetSelect").value,10); renderFeatList(); });
+  $("trainRatio").addEventListener("input", ()=>{ $("ratioVal").textContent = Math.round($("trainRatio").value*100)+"%"; });
+
+  $("fileInput").addEventListener("change", e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => ingest(ev.target.result, f.name);
+    reader.readAsText(f);
+  });
+  // 拖拽
+  const ub = $("uploadBox");
+  ub.addEventListener("dragover", e=>{ e.preventDefault(); ub.style.borderColor="#0f3460"; });
+  ub.addEventListener("dragleave", ()=>{ ub.style.borderColor=""; });
+  ub.addEventListener("drop", e=>{
+    e.preventDefault(); ub.style.borderColor="";
+    const f = e.dataTransfer.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => ingest(ev.target.result, f.name);
+    reader.readAsText(f);
+  });
+  $("exampleBtn").addEventListener("click", ()=>{
+    const csv = E.generateExampleCSV();
+    ingest(csv, "内置示例（二分类合成数据 600×8）");
+  });
+
+  /* ---------- 运行分析 ---------- */
+  async function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  function disposeCharts(){ charts.forEach(c=>{ try{c.dispose();}catch(e){} }); charts=[]; }
+
+  function getSelectedModels(){
+    return [...document.querySelectorAll("#modelChecks input:checked")].map(i=>i.value);
+  }
+
+  function runAnalysis(){
+    if(!DATA){ setStatus("请先上传或加载数据。", true); return; }
+    const models = getSelectedModels();
+    if(models.length===0){ setStatus("请至少勾选一种机器学习方法。", true); return; }
+    const t = parseInt($("targetSelect").value,10);
+    const featCols = numericCols.filter(j=>j!==t);
+    if(featCols.length===0){ setStatus("没有可用于建模的数值特征列，请检查数据。", true); return; }
+    const nonNumTarget = !numericCols.includes(t);
+    const yRaw = DATA.rows.map(r=> r[t]);
+    // 编码标签
+    const { y, classes, K } = E.encodeLabels(yRaw);
+    if(K<2){ setStatus("标签列至少需包含 2 个不同类别。", true); return; }
+
+    const Xraw = DATA.rows.map(r=> featCols.map(j=> parseFloat(r[j])));
+    const trainRatio = parseFloat($("trainRatio").value);
+    const seed = parseInt($("seedInput").value,10) || 0;
+    const stratified = $("stratified").value==="1";
+    const pre = $("preprocess").value;
+    const knnK = Math.max(1, parseInt($("knnK").value,10)||5);
+    const rfTrees = Math.max(10, parseInt($("rfTrees").value,10)||100);
+
+    const { trainIdx, testIdx } = E.trainTestSplit(Xraw.length, y, { trainRatio, seed, stratified });
+    const Xtr = trainIdx.map(i=>Xraw[i]);
+    const Xte = testIdx.map(i=>Xraw[i]);
+    const ytr = trainIdx.map(i=>y[i]);
+    const yte = testIdx.map(i=>y[i]);
+
+    let scaler=null;
+    if(pre==="std") scaler = E.fitStandardize(Xtr);
+    else if(pre==="minmax") scaler = E.fitMinMax(Xtr);
+    const XtrS = scaler? scaler.transform(Xtr): Xtr;
+    const XteS = scaler? scaler.transform(Xte): Xte;
+
+    const rng = E.mulberry32(seed*7 + 13);
+    const opts = {
+      lr:{lr:0.1, iters:400, C:1}, dt:{maxDepth:10,minSplit:10},
+      rf:{nTrees:rfTrees, maxDepth:12, minSplit:10}, knn:{k:knnK}, nb:{}, svm:{iters:2000, lambda:0.01}
+    };
+
+    clearLog();
+    log(`[配置] 标签列=${DATA.header[t]} 类别数=${K} 特征=${featCols.length} 训练/测试=${trainIdx.length}/${testIdx.length}`);
+    log(`[配置] 预处理=${pre==='std'?'Z-Score':pre==='minmax'?'MinMax':'无'} 分层抽样=${stratified} 种子=${seed}`);
+    log(`[模型] 已选 ${models.length} 个：${models.map(m=>E.MODEL_REGISTRY[m].label).join("、")}`);
+
+    // 显示遮罩
+    $("overlay").classList.add("show");
+    disposeCharts();
+    $("resultCard").classList.remove("hidden");
+    $("resultSub").textContent = `数据集 ${Xraw.length} 样本 · ${featCols.length} 特征 · ${K} 分类 · 训练 ${trainIdx.length} / 测试 ${testIdx.length}`;
+
+    const results = [];
+    for(let mi=0; mi<models.length; mi++){
+      const key = models[mi];
+      const def = E.MODEL_REGISTRY[key];
+      $("overlayText").textContent = `正在训练：${def.label}（${mi+1}/${models.length}）`;
+      log(`→ 训练 ${def.label} …`);
+      await sleep(40); // 让 UI 绘制遮罩
+      const t0 = performance.now();
+      let model;
+      try { model = def.train(XtrS, ytr, K, rng, opts[key]); }
+      catch(err){ log("  ✗ 训练失败：" + err.message); continue; }
+      const proba = model.predictProba(XteS);
+      const pred = proba.map(p=>{ let bi=0,bv=-Infinity; for(let k=0;k<p.length;k++) if(p[k]>bv){bv=p[k];bi=k;} return bi; });
+      const pos = K>1 ? 1 : 0;
+      const metrics = E.computeMetrics(yte, pred, proba, K, pos);
+      const roc = (K===2) ? E.rocCurve(yte.map(v=>(v===pos?1:0)), proba.map(p=>p[pos]))
+                           : E.macroROC(yte, proba, K);
+      const dt = (performance.now()-t0).toFixed(0);
+      results.push({ key, name: model.name, metrics, roc, acc: metrics.acc });
+      log(`  ✓ ${model.name}  acc=${metrics.acc.toFixed(4)} AUC=${metrics.auc.toFixed(4)}  (${dt}ms)`);
+    }
+
+    if(results.length===0){ $("overlay").classList.remove("show"); setStatus("所有模型均训练失败，请检查数据。", true); return; }
+
+    renderMetricsTable(results, K);
+    renderROC(results, K);
+    renderConfusionMatrices(results, classes, K);
+    renderConclusions(results, {K, n:Xraw.length, feat:featCols.length, tr:trainIdx.length, te:testIdx.length, pre, stratified, models:models.map(m=>E.MODEL_REGISTRY[m].label)});
+
+    $("overlay").classList.remove("show");
+    setStatus(`分析完成，共运行 ${results.length} 个模型。下方展示性能指标、ROC 对比与各模型混淆矩阵。`, false);
+    window.scrollTo({ top: $("resultCard").offsetTop-20, behavior:"smooth" });
+  }
+
+  /* ---------- 渲染：指标表 ---------- */
+  function renderMetricsTable(results, K){
+    const cols = ["模型","准确率","精确率","召回率","F1分数","AUC"];
+    let html = "<thead><tr>" + cols.map(c=>`<th>${c}</th>`).join("") + "</tr></thead><tbody>";
+    // 找每列最大
+    const best = {acc:-1,p:-1,r:-1,f:-1,auc:-1};
+    results.forEach(r=>{ best.acc=Math.max(best.acc,r.metrics.acc); best.p=Math.max(best.p,r.metrics.macroP); best.r=Math.max(best.r,r.metrics.macroR); best.f=Math.max(best.f,r.metrics.macroF); best.auc=Math.max(best.auc,r.metrics.auc); });
+    results.forEach(r=>{
+      const m=r.metrics;
+      const cell=(v,b)=>`<td class="${b?'best':''}">${v.toFixed(4)}</td>`;
+      html += `<tr><td class="mname">${r.name}</td>` +
+        cell(m.acc, m.acc===best.acc) + cell(m.macroP, m.macroP===best.p) +
+        cell(m.macroR, m.macroR===best.r) + cell(m.macroF, m.macroF===best.f) +
+        cell(m.auc, m.auc===best.auc) + "</tr>";
+    });
+    html += "</tbody>";
+    $("metricsTable").innerHTML = html;
+    $("rocNote").textContent = K===2 ? "注：ROC 曲线以正类（第二类）为阳性绘制；表中指标为二分类正类视角。" : "注：多分类场景下，指标为各类宏平均（macro），ROC 为 One-vs-Rest 宏平均曲线。";
+  }
+
+  /* ---------- 渲染：ROC ---------- */
+  function renderROC(results, K){
+    const series = [{
+      name:"随机基线", type:"line", data:[[0,0],[1,1]],
+      lineStyle:{type:"dashed", color:"#b0b6c0", width:1.5}, symbol:"none", tooltip:{show:false}, z:1
+    }];
+    const palette = ["#0f3460","#e74c3c","#27ae60","#f39c12","#8e44ad","#16a085"];
+    results.forEach((r,i)=>{
+      const pts = r.roc.fpr.map((f,idx)=>[ +f.toFixed(4), +r.roc.tpr[idx].toFixed(4) ]);
+      series.push({ name:`${r.name} (AUC=${r.roc.auc.toFixed(3)})`, type:"line", data:pts, smooth:false, symbol:"none", lineStyle:{width:2.4, color:palette[i%palette.length]}, itemStyle:{color:palette[i%palette.length]}, z:2 });
+    });
+    const chart = echarts.init($("rocChart"));
+    chart.setOption({
+      title:{ text:"ROC 曲线对比", left:"center", textStyle:{fontSize:14,color:"#1a1a2e"} },
+      tooltip:{ trigger:"axis", formatter: p=>{ let s=p[0].axisValue+"<br>"; p.forEach(x=>{ if(x.seriesName!=="随机基线") s+=`${x.seriesName}: (${x.value[0]}, ${x.value[1]})<br>`; }); return s; } },
+      legend:{ bottom:0, type:"scroll", textStyle:{fontSize:12} },
+      grid:{ left:55, right:25, top:46, bottom:50 },
+      xAxis:{ type:"value", name:"假正率 FPR", min:0, max:1, nameLocation:"middle", nameGap:28, splitLine:{lineStyle:{color:"#eee"}} },
+      yAxis:{ type:"value", name:"真正率 TPR", min:0, max:1, nameLocation:"middle", nameGap:40, splitLine:{lineStyle:{color:"#eee"}} },
+      series
+    });
+    charts.push(chart);
+    window.addEventListener("resize", ()=>chart.resize());
+  }
+
+  /* ---------- 渲染：混淆矩阵热力图 ---------- */
+  function renderConfusionMatrices(results, classes, K){
+    const grid = $("cmGrid");
+    grid.innerHTML = "";
+    const labels = classes.map(c=>String(c));
+    results.forEach((r)=>{
+      const item = document.createElement("div");
+      item.className = "cm-item";
+      item.innerHTML = `<h4>${r.name}（准确率 ${(r.acc*100).toFixed(2)}%）</h4><div class="cm-chart"></div>`;
+      grid.appendChild(item);
+      const cm = r.metrics.cm;
+      const data=[]; let maxv=0;
+      for(let a=0;a<K;a++) for(let p=0;p<K;p++){ data.push([p, a, cm[a][p]]); if(cm[a][p]>maxv) maxv=cm[a][p]; }
+      const chart = echarts.init(item.querySelector(".cm-chart"));
+      chart.setOption({
+        tooltip:{ position:"top", formatter: o=> `真实=${labels[o.value[1]]} / 预测=${labels[o.value[0]]}<br>样本数=${o.value[2]}` },
+        grid:{ left:50, right:15, top:15, bottom:45 },
+        xAxis:{ type:"category", data:labels, name:"预测", nameLocation:"middle", nameGap:26, splitArea:{show:true} },
+        yAxis:{ type:"category", data:labels, name:"真实", inverse:true, splitArea:{show:true} },
+        visualMap:{ min:0, max:maxv, calculable:true, orient:"horizontal", left:"center", bottom:0, itemWidth:12, itemHeight:80, textStyle:{fontSize:11} },
+        series:[{ type:"heatmap", data, label:{show:true, fontSize:13, fontWeight:600}, emphasis:{itemStyle:{shadowBlur:8, shadowColor:"rgba(0,0,0,.3)"}} }]
+      });
+      charts.push(chart);
+      window.addEventListener("resize", ()=>chart.resize());
+    });
+  }
+
+  /* ---------- 渲染：核心结论 ---------- */
+  function renderConclusions(results, ctx){
+    const ul = $("conclusions");
+    ul.innerHTML = "";
+    const byAUC = [...results].sort((a,b)=>b.metrics.auc-a.metrics.auc);
+    const byACC = [...results].sort((a,b)=>b.acc-a.acc);
+    const bestA = byAUC[0], bestC = byACC[0];
+    const items = [];
+
+    items.push(`本次共对比 <strong>${results.length}</strong> 个模型，数据规模 <strong>${ctx.n}</strong> 样本 / <strong>${ctx.feat}</strong> 特征 / <strong>${ctx.K}</strong> 分类，按 ${Math.round((ctx.tr/(ctx.tr+ctx.te))*100)}:${Math.round((ctx.te/(ctx.tr+ctx.te))*100)} 划分（${ctx.pre==='std'?'Z-Score标准化':ctx.pre==='minmax'?'Min-Max归一化':'不预处理'}）。`);
+
+    items.push(`<strong>AUC 最优：</strong>${bestA.name}（AUC=${bestA.metrics.auc.toFixed(4)}）；<strong>准确率最优：</strong>${bestC.name}（准确率=${(bestC.acc*100).toFixed(2)}%）。${bestA.key===bestC.key? '两项指标均由同一模型领跑。' : 'AUC 与准确率的最优模型不一致，说明阈值选择会影响最终排序。'}`);
+
+    const linear = results.filter(r=>["lr","svm","nb"].includes(r.key));
+    const tree = results.filter(r=>["dt","rf"].includes(r.key));
+    if(linear.length && tree.length){
+      const la = linear.reduce((s,r)=>s+r.metrics.auc,0)/linear.length;
+      const ta = tree.reduce((s,r)=>s+r.metrics.auc,0)/tree.length;
+      items.push(`线性模型组（逻辑回归/朴素贝叶斯/支持向量机）平均 AUC=<strong>${la.toFixed(4)}</strong>，树模型组（决策树/随机森林）平均 AUC=<strong>${ta.toFixed(4)}</strong>。${la>ta?'本数据集呈现出较强的<strong>线性可分性</strong>，简单线性模型即可获得优异表现——这与金融风控中"特征工程到位时线性基线也很强"的经验一致。':'集成树模型在此数据上更具优势，适合捕捉非线性边界。'}`);
+    }
+
+    const top3 = byAUC.slice(0,3).map(r=>`${r.name}(${r.metrics.auc.toFixed(3)})`).join(" > ");
+    items.push(`模型排序（按 AUC）：<strong>${top3}</strong>。AUC 作为阈值无关指标，比单纯准确率更能反映模型对正负样本的整体排序能力。在金融场景中，若错分代价不对称（如漏检违约远比误拒正常客户严重），应优先关注 <strong>召回率与 AUC</strong> 而非单一准确率。`);
+
+    const spread = byAUC[0].metrics.auc - byAUC[byAUC.length-1].metrics.auc;
+    items.push(`各模型 AUC 跨度约 <strong>${spread.toFixed(4)}</strong>。实际选型需结合业务约束：追求精度与稳定性→集成方法（随机森林）；需要强解释性→决策树/规则抽取；快速迭代原型→逻辑回归。<strong>不存在绝对最优的模型，只有最匹配场景的模型。</strong>`);
+
+    items.forEach(t=>{ const li=document.createElement("li"); li.innerHTML=t; ul.appendChild(li); });
+  }
+
+  $("runBtn").addEventListener("click", runAnalysis);
+
+  // 若通过 URL 参数 ?example=1 直接进入示例
+  if(new URLSearchParams(location.search).get("example")==="1"){ $("exampleBtn").click(); }
+})();
+</script>
+</body>
+</html>
