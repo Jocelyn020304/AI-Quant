@@ -47,10 +47,11 @@ input[type=range] { width:100%; }
 .metrics-table .mname { text-align:left; font-weight:600; }
 /* charts */
 #rocChart { width:100%; height:440px; }
-.cm-grid { display:flex; flex-wrap:wrap; gap:24px; margin-top:10px; }
+.cm-grid { display:flex; flex-wrap:wrap; gap:24px; margin-top:10px; position:relative; }
 .cm-item { flex:1 1 320px; min-width:300px; max-width:520px; border:1px solid #eef0f5; border-radius:10px; padding:14px; background:#fcfdff; }
 .cm-item h4 { font-size:14px; color:#1a1a2e; margin-bottom:6px; text-align:center; }
 .cm-chart { width:100%; height:300px; }
+.cm-colorbar { width:28px; height:100%; min-height:280px; align-self:center; }
 /* conclusions */
 .key-points { list-style:none; padding:0; margin-top:6px; }
 .key-points li { padding:11px 0 11px 34px; position:relative; border-bottom:1px dashed #eee; font-size:14px; }
@@ -180,7 +181,7 @@ input[type=range] { width:100%; }
         <div id="rocChart"></div>
         <div class="note" id="rocNote"></div>
 
-        <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">③ 混淆矩阵热力图（每个模型一张）</h3>
+        <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">③ 混淆矩阵热力图</h3>
         <div class="cm-grid" id="cmGrid"></div>
 
         <h3 style="font-size:15px;color:#1a1a2e;margin:24px 0 2px;">④ 核心结论（自动生成）</h3>
@@ -226,15 +227,8 @@ input[type=range] { width:100%; }
     const rows = E.parseCSV(text);
     if(rows.length < 3){ setStatus("CSV 行数过少，无法建模。", true); return; }
     const header = rows[0].map((h,i)=> h.trim() || ("col"+i));
-    const data = rows.slice(1);
-    // 数值列检测
-    numericCols = [];
-    for(let j=0;j<header.length;j++){
-      let ok=true;
-      for(let i=0;i<Math.min(data.length,200);i++){ if(!isNumeric(data[i][j])){ ok=false; break; } }
-      if(ok) numericCols.push(j);
-    }
-    DATA = { header, rows: data };
+    let data = rows.slice(1);
+
     // 默认目标列：名称命中 / 最后一列
     let def = header.length-1;
     const names = header.map(h=>h.toLowerCase());
@@ -242,35 +236,58 @@ input[type=range] { width:100%; }
     if(hit>=0) def = hit;
     targetIdx = def;
 
+    // 自动编码非数值列（目标列除外）
+    const encResult = E.autoEncodeColumns(data, header, targetIdx);
+    data = encResult.rows;
+    // 更新 header 和 targetIdx（autoEncodeColumns 可能因独热编码导致索引偏移）
+    let currentHeader = [...encResult.header];
+    let currentTargetIdx = targetIdx; // autoEncodeColumns 内部已处理偏移，但返回的是新header
+
+    // 重新检测数值列（编码后应该全是数值了）
+    numericCols = [];
+    for(let j=0;j<currentHeader.length;j++){
+      let ok=true;
+      for(let i=0;i<Math.min(data.length,200);i++){ if(!isNumeric(data[i][j])){ ok=false; break; } }
+      if(ok) numericCols.push(j);
+    }
+
+    DATA = { header: currentHeader, rows: data };
+
     // 填充下拉
     const sel = $("targetSelect");
     sel.innerHTML = "";
-    header.forEach((h,i)=>{
+    currentHeader.forEach((h,i)=>{
       const o=document.createElement("option");
       o.value=i; o.textContent = h + (numericCols.includes(i)?"":"（非数值，将自动编码）");
-      if(i===def) o.selected=true;
+      if(i===currentTargetIdx) o.selected=true;
       sel.appendChild(o);
     });
 
-    // 特征列表（数值列且非目标）
+    // 特征列表
     renderFeatList();
 
     $("dataInfo").classList.remove("hidden");
-    $("dataInfo").textContent = `样本 ${data.length} 行 · ${header.length} 列 · 数值列 ${numericCols.length} 个`;
+    let infoText = `样本 ${data.length} 行 · ${currentHeader.length} 列 · 数值列 ${numericCols.length} 个`;
+    if(encResult.encodedCols.length > 0){
+      const labelEncs = encResult.encodedCols.filter(c=>c.method==='label');
+      const ohEncs = encResult.encodedCols.filter(c=>c.method==='onehot');
+      if(labelEncs.length) infoText += ` · 标签编码 ${labelEncs.map(c=>c.originalName).join('、')}`;
+      if(ohEncs.length) infoText += ` · 独热编码 ${ohEncs.map(c=>c.originalName).join('、')}`;
+    }
+    $("dataInfo").textContent = infoText;
     $("configCard").classList.remove("hidden");
     setStatus(`已载入「${sourceName}」：${data.length} 条样本，请在下方的配置区选择标签列与模型，然后点击「运行分析」。`, false);
-    log(`[数据] 来源=${sourceName} 样本数=${data.length} 列数=${header.length} 数值列=${numericCols.length}`);
+    log(`[数据] 来源=${sourceName} 样本数=${data.length} 列数=${currentHeader.length} 数值列=${numericCols.length}`);
+    if(encResult.encodedCols.length > 0){
+      log(`[编码] 已自动处理 ${encResult.encodedCols.length} 个非数值列：` + encResult.encodedCols.map(c=>`${c.originalName}(${c.method})`).join(', '));
+    }
   }
 
   function renderFeatList(){
     const t = parseInt($("targetSelect").value,10);
     const feats = numericCols.filter(j=>j!==t).map(j=>DATA.header[j]);
-    const nonNum = DATA.header.filter((_,j)=>!numericCols.includes(j) && j!==t);
     let html = `<span style="font-size:13px;color:#555;font-weight:600;">参与建模的特征列（${feats.length} 个）：</span> `;
     feats.forEach(f=> html += `<span class="info-pill">${f}</span>`);
-    if(nonNum.length){
-      html += `<div class="note">⚠️ 以下非数值列已自动排除：${nonNum.join("、")}（若需使用，请先做编码/数值化）。</div>`;
-    }
     $("featList").innerHTML = html;
   }
 
@@ -442,6 +459,13 @@ input[type=range] { width:100%; }
     const grid = $("cmGrid");
     grid.innerHTML = "";
     const labels = classes.map(c=>String(c));
+    // 找全局最大值用于统一色柱
+    let globalMax = 0;
+    results.forEach(r=>{
+      const cm = r.metrics.cm;
+      for(let a=0;a<K;a++) for(let p=0;p<K;p++) if(cm[a][p]>globalMax) globalMax=cm[a][p];
+    });
+
     results.forEach((r)=>{
       const item = document.createElement("div");
       item.className = "cm-item";
@@ -453,15 +477,58 @@ input[type=range] { width:100%; }
       const chart = echarts.init(item.querySelector(".cm-chart"));
       chart.setOption({
         tooltip:{ position:"top", formatter: o=> `真实=${labels[o.value[1]]} / 预测=${labels[o.value[0]]}<br>样本数=${o.value[2]}` },
-        grid:{ left:55, right:20, top:18, bottom:52 },
+        grid:{ left:55, right:20, top:18, bottom:40 },
         xAxis:{ type:"category", data:labels, name:"预测", nameLocation:"middle", nameGap:28, splitArea:{show:true}, axisLabel:{fontSize:12} },
         yAxis:{ type:"category", data:labels, name:"真实", inverse:true, splitArea:{show:true}, axisLabel:{fontSize:12} },
-        visualMap:{ min:0, max:maxv, calculable:false, orient:"horizontal", left:"center", bottom:-2, itemWidth:14, itemHeight:70, textStyle:{fontSize:10}, itemGap:4 },
-        series:[{ type:"heatmap", data, label:{show:true, fontSize:13, fontWeight:600}, emphasis:{itemStyle:{shadowBlur:8, shadowColor:"rgba(0,0,0,.3)"}} }]
+        visualMap:{ show:false, min:0, max:globalMax },
+        series:[{
+          type:"heatmap", data,
+          label:{show:true, fontSize:13, fontWeight:600, color:'#1a1a2e'},
+          emphasis:{itemStyle:{shadowBlur:8, shadowColor:"rgba(0,0,0,.3)"}},
+          itemStyle:{
+            color:function(params){
+              const v = params.value[2];
+              const ratio = globalMax > 0 ? v / globalMax : 0;
+              // 白 → 浅蓝 → 中蓝 → 深蓝
+              if(ratio <= 0.25) return lerpColor('#ffffff', '#bfdbfe', ratio/0.25);
+              else if(ratio <= 0.5) return lerpColor('#bfdbfe', '#60a5fa', (ratio-0.25)/0.25);
+              else if(ratio <= 0.75) return lerpColor('#60a5fa', '#2563eb', (ratio-0.5)/0.25);
+              else return lerpColor('#2563eb', '#1e3a8a', (ratio-0.75)/0.25);
+            }
+          }
+        }]
       });
       charts.push(chart);
       window.addEventListener("resize", ()=>chart.resize());
     });
+
+    // 共享色柱（放在网格右侧）
+    const barContainer = document.createElement("div");
+    barContainer.className = "cm-colorbar";
+    grid.appendChild(barContainer);
+    const barChart = echarts.init(barContainer);
+    barChart.setOption({
+      grid:{ left:0, right:0, top:10, bottom:10, containLabel:false },
+      visualMap:{
+        show:true, min:0, max:globalMax,
+        calculable:false, orient:"vertical", left:'center',
+        inRange:{ color:['#ffffff','#bfdbfe','#60a5fa','#2563eb','#1e3a8a'] },
+        textStyle:{ fontSize:11, color:'#666' },
+        itemWidth:14, itemHeight:12, itemGap:3
+      },
+      series:[{ type:'custom', data:[], renderItem:()=>({}) }] // dummy series to host visualMap
+    });
+    charts.push(barChart);
+    window.addEventListener("resize", ()=>barChart.resize());
+  }
+
+  // 颜色插值辅助函数
+  function lerpColor(c1, c2, t){
+    t = Math.max(0, Math.min(1, t));
+    const r1=parseInt(c1.slice(1,3),16), g1=parseInt(c1.slice(3,5),16), b1=parseInt(c1.slice(5,7),16);
+    const r2=parseInt(c2.slice(1,3),16), g2=parseInt(c2.slice(3,5),16), b2=parseInt(c2.slice(5,7),16);
+    const r=Math.round(r1+(r2-r1)*t), g=Math.round(g1+(g2-g1)*t), b=Math.round(b1+(b2-b1)*t);
+    return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
   }
 
   /* ---------- 渲染：核心结论 ---------- */
@@ -492,6 +559,20 @@ input[type=range] { width:100%; }
     items.push(`各模型 AUC 跨度约 <strong>${spread.toFixed(4)}</strong>。实际选型需结合业务约束：追求精度与稳定性→集成方法（随机森林）；需要强解释性→决策树/规则抽取；快速迭代原型→逻辑回归。<strong>不存在绝对最优的模型，只有最匹配场景的模型。</strong>`);
 
     items.forEach(t=>{ const li=document.createElement("li"); li.innerHTML=t; ul.appendChild(li); });
+
+    // 指标解释备注
+    const note = document.createElement("div");
+    note.className = "note";
+    note.style.marginTop="16px";
+    note.style.padding="12px 14px";
+    note.style.background="#f8f9fb";
+    note.style.borderRadius="8px";
+    note.style.borderLeft="3px solid #0f3460";
+    note.innerHTML = `<strong style="color:#1a1a2e;">📖 指标解释</strong><br>
+      <span style="font-size:12.5px;color:#555;line-height:1.8;">
+      <b>准确率 (Accuracy)</b>：预测正确的比例；<b>精确率 (Precision)</b>：预测为正类中真正为正类的比例（查准）；<b>召回率 (Recall)</b>：实际为正类中被正确预测的比例（查全）；<b>F1 分数</b>：精确率与召回率的调和平均；<b>AUC</b>：ROC 曲线下面积，衡量模型对正负样本的整体排序能力（值越大越好，随机猜测=0.5）。多分类场景下精确率/召回率/F1 为各类宏平均（macro），ROC 为 One-vs-Rest 宏平均曲线。
+      </span>`;
+    ul.parentNode.insertBefore(note, ul.nextSibling);
   }
 
   $("runBtn").addEventListener("click", runAnalysis);

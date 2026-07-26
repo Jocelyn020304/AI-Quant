@@ -76,6 +76,92 @@ function parseCSV(text) {
   return rows.filter(r => r.length && !(r.length === 1 && r[0].trim() === ""));
 }
 
+/* ---------- 非数值列自动编码 ---------- */
+
+/**
+ * 检测每列类型，返回 { numericCols:[idx], categoricalCols:[idx], colInfo }
+ * numericCols = 全是数值的列；categoricalCols = 含非数值的列（排除目标列）
+ */
+function detectColumnTypes(rows, header) {
+  const d = header.length;
+  const numericCols = [];
+  const categoricalCols = [];
+  const colInfo = [];
+  for (let j = 0; j < d; j++) {
+    let ok = true;
+    const sampleLen = Math.min(rows.length, 200);
+    for (let i = 0; i < sampleLen; i++) { if (!isFinite(Number(rows[i][j]))) { ok = false; break; } }
+    if (ok) { numericCols.push(j); colInfo.push({ type: 'numeric' }); }
+    else { categoricalCols.push(j); colInfo.push({ type: 'categorical' }); }
+  }
+  return { numericCols, categoricalCols, colInfo };
+}
+
+/**
+ * 对非数值列自动编码：
+ *   - 唯一值 ≤ 10 → 标签编码（Label Encoding），替换为 0,1,2...
+ *   - 唯一值 > 10  → 独热编码（One-Hot），拆成多列
+ *
+ * 返回 { rows: 编码后的二维数组(全数值), header: 新表头,
+ *          encodedCols: [{originalIdx, originalName, method:'label'|'onehot', newNames?, map?}] }
+ */
+function autoEncodeColumns(rows, header, targetIdx) {
+  const types = detectColumnTypes(rows, header);
+  // 目标列不参与特征编码（标签单独用 encodeLabels）
+  const toEncode = types.categoricalCols.filter(j => j !== targetIdx);
+  if (toEncode.length === 0) return { rows, header, encodedCols: [] };
+
+  const encodedCols = [];
+  let newHeader = [...header];
+  let newRows = rows.map(r => [...r]);
+
+  for (const j of toEncode) {
+    const name = header[j];
+    const values = newRows.map(r => r[j]);
+    const uniqSet = new Set(values);
+    const uniqVals = [...uniqSet];
+
+    if (uniqVals.length <= 10) {
+      // 标签编码
+      const map = {};
+      uniqVals.sort().forEach((v, idx) => { map[v] = idx; });
+      for (let i = 0; i < newRows.length; i++) newRows[i][j] = map[newRows[i][j]];
+      encodedCols.push({ originalIdx: j, originalName: name, method: 'label', newName: name + '(编码)', map });
+      newHeader[j] = name + '(编码)';
+    } else {
+      // 独热编码：原位置填第一个 dummy，右侧追加其余
+      const sortedUniq = [...uniqVals].sort();
+      const prefix = name;
+      const newNames = sortedUniq.map(v => prefix + '_' + String(v).slice(0, 12));
+      // 构建值→列索引映射
+      const valToCol = {};
+      sortedUniq.forEach((v, idx) => { valToCol[v] = idx; });
+
+      // 在原列位置放第一个 dummy
+      for (let i = 0; i < newRows.length; i++) {
+        const v = newRows[i][j];
+        const baseArr = new Array(sortedUniq.length).fill(0);
+        baseArr[valToCol[v]] = 1;
+        newRows[i][j] = baseArr[0]; // 第一个 dummy 放原位
+        // 其余 dummy 插入到原列右侧
+        for (let k = 1; k < baseArr.length; k++) newRows[i].splice(j + k, 0, baseArr[k]);
+      }
+      // 更新 header
+      newHeader[j] = newNames[0];
+      for (let k = 1; k < newNames.length; k++) newHeader.splice(j + k, 0, newNames[k]);
+
+      // 后续 toEncode 的列索引需要偏移
+      const offset = sortedUniq.length - 1;
+      for (let ei = 0; ei < toEncode.length; ei++) if (toEncode[ei] > j) toEncode[ei] += offset;
+      if (targetIdx > j) targetIdx += offset;
+
+      encodedCols.push({ originalIdx: j, originalName: name, method: 'onehot', newNames, valToCol: sortedUniq });
+    }
+  }
+
+  return { rows: newRows, header: newHeader, encodedCols };
+}
+
 /* ---------- 标签编码 ---------- */
 
 function encodeLabels(yRaw) {
@@ -512,7 +598,8 @@ function generateExampleCSV() {
 const MLEngine = {
   parseCSV, encodeLabels, fitStandardize, fitMinMax, trainTestSplit,
   computeMetrics, rocCurve, macroROC, confusionMatrix, computeAUC,
-  MODEL_REGISTRY, generateExampleCSV, mulberry32
+  MODEL_REGISTRY, generateExampleCSV, mulberry32,
+  detectColumnTypes, autoEncodeColumns
 };
 
 if (typeof module !== "undefined" && module.exports) {
