@@ -305,7 +305,7 @@ input[type=range] { width:100%; }
     return [...document.querySelectorAll("#modelChecks input:checked")].map(i=>i.value);
   }
 
-  function runAnalysis(){
+  async function runAnalysis(){
     if(!DATA){ setStatus("请先上传或加载数据。", true); return; }
     const models = getSelectedModels();
     if(models.length===0){ setStatus("请至少勾选一种机器学习方法。", true); return; }
