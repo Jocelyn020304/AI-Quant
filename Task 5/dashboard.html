@@ -458,14 +458,14 @@ input[type=range] { width:100%; }
     const grid = $("cmGrid");
     grid.innerHTML = "";
     const labels = classes.map(c=>String(c));
-    // 找全局最大值用于统一色柱
+    // 找全局最大值用于统一色阶
     let globalMax = 0;
     results.forEach(r=>{
       const cm = r.metrics.cm;
       for(let a=0;a<K;a++) for(let p=0;p<K;p++) if(cm[a][p]>globalMax) globalMax=cm[a][p];
     });
 
-    results.forEach((r, ri)=>{
+    results.forEach((r)=>{
       const item = document.createElement("div");
       item.className = "cm-item";
       item.innerHTML = `<h4>${r.name}（准确率 ${(r.acc*100).toFixed(2)}%）</h4><div class="cm-chart"></div>`;
@@ -473,13 +473,20 @@ input[type=range] { width:100%; }
       const cm = r.metrics.cm;
       const data=[]; let maxv=0;
       for(let a=0;a<K;a++) for(let p=0;p<K;p++){ data.push([p, a, cm[a][p]]); if(cm[a][p]>maxv) maxv=cm[a][p]; }
-      const isLast = (ri === results.length - 1);
       const chart = echarts.init(item.querySelector(".cm-chart"));
-      const opt = {
+      chart.setOption({
         tooltip:{ position:"top", formatter: o=> `真实=${labels[o.value[1]]} / 预测=${labels[o.value[0]]}<br>样本数=${o.value[2]}` },
-        grid:{ left:55, right:isLast ? 50 : 20, top:18, bottom:40 },
+        grid:{ left:55, right:48, top:18, bottom:40 },
         xAxis:{ type:"category", data:labels, name:"预测", nameLocation:"middle", nameGap:28, splitArea:{show:true}, axisLabel:{fontSize:12} },
         yAxis:{ type:"category", data:labels, name:"真实", inverse:true, splitArea:{show:true}, axisLabel:{fontSize:12} },
+        visualMap:{
+          show:true, min:0, max:globalMax,
+          calculable:false, orient:"vertical", right:2, top:'center',
+          inRange:{ color:['#ffffff','#bfdbfe','#60a5fa','#2563eb','#1e3a8a'] },
+          textStyle:{ fontSize:11, color:'#555' },
+          formatter:v => Math.round(v),
+          itemWidth:14, itemHeight:280/5, itemGap:2
+        },
         series:[{
           type:"heatmap", data,
           label:{show:true, fontSize:13, fontWeight:600, color:'#1a1a2e'},
@@ -495,20 +502,7 @@ input[type=range] { width:100%; }
             }
           }
         }]
-      };
-      // 仅在最后一张热力图上显示共享色柱
-      if(isLast){
-        opt.visualMap={
-          show:true, min:0, max:globalMax,
-          calculable:false, orient:"vertical", right:2, top:'center',
-          inRange:{ color:['#ffffff','#bfdbfe','#60a5fa','#2563eb','#1e3a8a'] },
-          textStyle:{ fontSize:11, color:'#666' },
-          itemWidth:14, itemHeight:12, itemGap:3
-        };
-      }else{
-        opt.visualMap={ show:false, min:0, max:globalMax };
-      }
-      chart.setOption(opt);
+      });
       charts.push(chart);
       window.addEventListener("resize", ()=>chart.resize());
     });
