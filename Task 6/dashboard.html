@@ -118,13 +118,12 @@ ov-row span{font-size:13px}
 <body>
 <div class="app">
   <div class="banner" id="backend-banner">
-    ⚠️ <b>未检测到本地数据后端</b>：本看板的实时行情/选股数据需经本地 Flask 代理拉取。请在本机运行
-    <code>python Task 6/task6_backend.py</code>，再访问 <code>http://localhost:5006</code> 即可完整使用。
-    （当前页面在 GitHub Pages / 本地双击打开时，点击指数与搜索将无法获取数据。）
+    ⚠️ <b>数据加载失败</b>：静态数据包未找到且本地后端不可达。请确认 <code>static_data.json</code> 已部署到同目录，
+    或在本机运行 <code>python Task 6/task6_backend.py</code> 后访问 <code>http://localhost:5006</code>。
   </div>
   <div class="hdr">
     <h1>🧠 TASK 6 — 智能决策者：机器学习定制策略</h1>
-    <div class="sub">回归预测 · Top-K 选股 · 季度回测 · 多模型对比 · 实时数据</div>
+    <div class="sub">回归预测 · Top-K 选股 · 季度回测 · 多模型对比 · 纯前端运行</div>
   </div>
 
   <div class="body">
@@ -274,6 +273,7 @@ let portfolioStocks = [];
 let indexMembers = [];
 let selectedIndex = null;
 let charts = [];
+let STATIC_DATA = null;  // 静态数据（从 static_data.json 加载）
 
 // 固定模型顺序和颜色（所有图表统一使用）
 const MODEL_ORDER = ['ridge','dt','rf','knn'];
@@ -312,7 +312,17 @@ function updateProgress(done,total){
 
 /* ===== 初始化 ===== */
 async function init(){
-  // 渲染指数列表
+  // ① 加载静态数据（GitHub Pages 纯静态模式）
+  showLoading('正在加载数据包...');
+  try{
+    const resp=await fetch('static_data.json');
+    if(resp.ok){
+      STATIC_DATA=await resp.json();
+      console.log(`[静态数据] 已加载 ${Object.keys(STATIC_DATA.stocks||{}).length} 只股票，${(STATIC_DATA.search_db||[]).length} 条搜索`);
+    }
+  }catch(e){console.warn('[静态数据] 加载失败，将尝试后端 API:',e)}
+
+  // ② 渲染指数列表
   try{
     const html=INDEX_LIST.map(idx=>`
       <div class="idx-item" onclick="selectIndex('${idx.code}','${idx.name}',this)">
@@ -329,8 +339,31 @@ async function init(){
   // 绑定模型 checkbox 切换样式
   bindModelCheckboxes();
 
-  // 探测后端是否可达（GitHub Pages 静态托管时不可达）
-  checkBackend();
+  hideLoading();
+
+  // ③ 如果有静态数据，隐藏后端提示横幅；否则探测后端
+  if(STATIC_DATA){
+    document.getElementById('backend-banner').style.display='none';
+  }else{
+    checkBackend();
+  }
+}
+
+/* ===== 静态数据解压 ===== */
+function decompressDaily(comp){
+  /* 将列压缩格式 {d:[],o:[],h:[],l:[],c:[],v:[],a:[]} 
+     转换为 regression_engine.js 需要的行格式 [{ts_code,trade_date,open,...}, ...] */
+  if(!comp||!comp.d)return [];
+  const n=comp.d.length;
+  const result=new Array(n);
+  for(let i=0;i<n;i++){
+    result[i]={
+      ts_code:'',trade_date:comp.d[i],
+      open:comp.o[i],high:comp.h[i],low:comp.l[i],close:comp.c[i],
+      vol:comp.v[i],amount:comp.a[i]
+    };
+  }
+  return result;
 }
 
 /* ===== 后端健康检测 ===== */
@@ -411,16 +444,41 @@ async function selectIndex(code,name,el){
   document.querySelectorAll('.idx-item').forEach(e=>e.classList.remove('active'));
   if(el)el.classList.add('active');
 
-  showLoading('正在获取成分股...');
+  showLoading('正在加载成分股...');
   await sleep(50);
 
   let members=[];
+
+  // ★ 优先从静态数据获取
+  if(STATIC_DATA && STATIC_DATA.indices[code]){
+    const idxData=STATIC_DATA.indices[code];
+    members=idxData.members||[];
+    // 加载日线数据（同步，无网络请求）
+    const customData={};
+    portfolioStocks.forEach(s=>{ if(currentStocks[s.code])customData[s.code]=currentStocks[s.code]; });
+    currentStocks=Object.assign({},customData);
+    indexMembers=members;
+
+    const availCodes=idxData.available_codes||[];
+    for(const c of availCodes){
+      if(STATIC_DATA.stocks[c]){
+        currentStocks[c]=decompressDaily(STATIC_DATA.stocks[c]);
+      }
+    }
+    hideLoading();
+    updateOverview();
+    renderPortfolio();
+    renderIndexMembers();
+    return;
+  }
+
+  // ★ 回退：通过后端 API 获取
   try{
     const resp=await fetch(`${API_BASE}/api/constituents?index=${code}`);
     const data=await resp.json();
     if(data.error){alert(data.error);hideLoading();return}
     members=data.members||[];
-  }catch(e){alert('获取成分股失败: '+e);hideLoading();return}
+  }catch(e){alert('获取成分股失败: '+e+'（静态数据中无此指数，且后端不可达）');hideLoading();return}
 
   if(members.length===0){alert('未获取到成分股数据');hideLoading();return}
 
@@ -458,10 +516,33 @@ document.getElementById('search-input').addEventListener('input',function(){
 });
 
 async function doSearch(q){
+  const box=document.getElementById('search-results');
+
+  // ★ 优先从静态数据搜索
+  if(STATIC_DATA && STATIC_DATA.search_db){
+    const ql=q.toLowerCase();
+    const results=STATIC_DATA.search_db.filter(s=>
+      (s.n||'').toLowerCase().includes(ql) || (s.c||'').toLowerCase().includes(ql)
+    ).slice(0,20);
+    if(results.length===0){box.style.display='none';return}
+    let html='';
+    for(const r of results){
+      const code=(r.c||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      const name=(r.n||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      html+='<div class="sr-item" onclick="handleSearchClick(event,\''+code+'\',\''+name+'\')">';
+      html+='<span>'+r.n+'</span>';
+      html+='<span class="code">'+r.c+' '+(r.i||'')+'</span>';
+      html+='</div>';
+    }
+    box.innerHTML=html;
+    box.style.display='block';
+    return;
+  }
+
+  // ★ 回退：后端 API
   try{
     const resp=await fetch(`${API_BASE}/api/stock_search?q=${encodeURIComponent(q)}`);
     const results=await resp.json();
-    const box=document.getElementById('search-results');
     if(results.length===0){box.style.display='none';return}
     let html='';
     for(const r of results){
@@ -506,16 +587,22 @@ if(!document.getElementById('toast-style')){
 async function addStock(code,name){
   if(portfolioStocks.find(s=>s.code===code))return;
   if(!currentStocks[code]){
-    showLoading(`正在拉取 ${name} 日线数据...`);
-    await sleep(50);
-    try{
-      const resp=await fetch(`${API_BASE}/api/stock_detail?code=${code}&start=20220101&end=20241231`);
-      const data=await resp.json();
-      if(data.data&&data.data.length>0){
-        currentStocks[code]=data.data;
-      }else{alert(`未获取到 ${code} 的数据`);hideLoading();return}
-    }catch(e){alert('拉取数据失败: '+e);hideLoading();return}
-    hideLoading();
+    // ★ 优先从静态数据获取
+    if(STATIC_DATA && STATIC_DATA.stocks[code]){
+      currentStocks[code]=decompressDaily(STATIC_DATA.stocks[code]);
+    }else{
+      // ★ 回退：后端 API
+      showLoading(`正在拉取 ${name} 日线数据...`);
+      await sleep(50);
+      try{
+        const resp=await fetch(`${API_BASE}/api/stock_detail?code=${code}&start=20220101&end=20241231`);
+        const data=await resp.json();
+        if(data.data&&data.data.length>0){
+          currentStocks[code]=data.data;
+        }else{alert(`未获取到 ${code} 的数据`);hideLoading();return}
+      }catch(e){alert('拉取数据失败: '+e);hideLoading();return}
+      hideLoading();
+    }
   }
   portfolioStocks.push({code,name});
   document.getElementById('search-results').style.display='none';

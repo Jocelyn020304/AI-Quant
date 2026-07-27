@@ -309,7 +309,7 @@ def api_stock_detail():
     return jsonify({"ts_code": code, "name": name, "data": data, "count": len(data)})
 
 # ===== 静态文件 =====
-_STATIC_FILES = {"dashboard.html", "regression_engine.js"}
+_STATIC_FILES = {"dashboard.html", "regression_engine.js", "static_data.json"}
 
 @app.route("/")
 def index_page():
