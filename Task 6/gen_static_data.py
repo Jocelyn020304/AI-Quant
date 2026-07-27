@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Task 6 静态数据生成器
-====================
+Task 6 静态数据生成器 v2
+=========================
 从 .task6_cache/ 缓存中读取已拉取的日线数据，
 合并成压缩格式的静态 JSON 文件，供 GitHub Pages 纯静态看板使用。
+
+v2: 支持全部 8 个指数（上证50/沪深300/创业板指/中证500/中证消费/中证医药/中证银行/半导体）
 
 输出：
   Task 6/static_data.json   — 所有指数成分股日线 + 搜索库
@@ -19,7 +21,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(SCRIPT_DIR, ".task6_cache")
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, "static_data.json")
 
-# ===== 指数成分股定义（与 dashboard.html INDEX_LIST + backend PRESET_CONSTITUENTS 对齐）=====
+# ===== 全部 8 个指数的成分股定义 =====
 INDEX_DEFINITIONS = {
     "000016.SH": {
         "name": "上证50",
@@ -65,6 +67,71 @@ INDEX_DEFINITIONS = {
             "688185.SH","688256.SH","688396.SH","688599.SH",
         ],
     },
+    # 创业板指 — 创业板核心股票（从缓存中筛选）
+    "399006.SZ": {
+        "name": "创业板指",
+        "type": "宽基",
+        "codes": [
+            "300015.SZ","300059.SZ","300124.SZ","300274.SZ","300308.SZ",
+            "300316.SZ","300433.SZ","300498.SZ","300750.SZ","300760.SZ",
+        ],
+    },
+    # 中证500 — 中盘股（缓存中沪深300之外的中小盘）
+    "000905.SH": {
+        "name": "中证500",
+        "type": "宽基",
+        "codes": [
+            "001227.SZ","002142.SZ","002807.SZ","002839.SZ","002936.SZ",
+            "002948.SZ","002958.SZ","002966.SZ","600015.SH","600908.SH",
+            "600928.SH","601009.SH","601077.SH","601128.SH","601187.SH",
+            "601229.SH","601398.SH","601528.SH","601577.SH","601658.SH",
+            "601665.SH","601825.SH","601838.SH","601860.SH","601916.SH",
+            "601939.SH","601963.SH","601988.SH","601997.SH","601998.SH",
+            "603323.SH","688981.SH",
+        ],
+    },
+    # 中证消费 — 消费白马
+    "000932.SH": {
+        "name": "中证消费",
+        "type": "行业",
+        "codes": [
+            "000568.SZ","000858.SZ","002304.SZ","600519.SH","600887.SH",
+            "603288.SH","000651.SZ","600690.SH","002714.SZ","600809.SH",
+            "002475.SZ","600600.SH","000333.SZ","603501.SH",
+        ],
+    },
+    # 中证医药 — 医药生物
+    "000933.SH": {
+        "name": "中证医药",
+        "type": "行业",
+        "codes": [
+            "300015.SZ","300760.SZ","600196.SH","600276.SH","603259.SH",
+            "002415.SZ","688185.SH","600436.SH","002007.SZ","300759.SZ",
+            "300122.SZ","300347.SZ","300601.SZ","688180.SH","688235.SH",
+        ],
+    },
+    # 中证银行 — 银行板块
+    "399986.SZ": {
+        "name": "中证银行",
+        "type": "行业",
+        "codes": [
+            "600000.SH","600016.SH","600036.SH","601166.SH","601169.SH",
+            "601229.SH","601288.SH","601398.SH","601818.SH","601939.SH",
+            "600015.SH","600919.SH","600926.SH","601166.SH","601227.SH",
+            "002142.SZ","601838.SH","601916.SH","601963.SH",
+        ],
+    },
+    # 半导体 — 半导体行业
+    "980017.SZ": {
+        "name": "半导体",
+        "type": "行业",
+        "codes": [
+            "002371.SZ","603986.SH","688012.SH","688256.SH","688396.SH",
+            "688005.SH","688008.SH","002049.SZ","300782.SZ","688041.SH",
+            "603501.SH","688599.SH","688111.SH","688036.SH","688185.SH",
+            "300474.SZ","002129.SZ","688981.SH",
+        ],
+    },
 }
 
 
@@ -96,7 +163,6 @@ def compress_daily(records):
     """
     if not records:
         return None
-    # 按 trade_date 排序
     records.sort(key=lambda r: r.get("trade_date", ""))
     return {
         "d": [r["trade_date"] for r in records],
@@ -111,7 +177,7 @@ def compress_daily(records):
 
 def main():
     print("=" * 55)
-    print("Task 6 静态数据生成器")
+    print("Task 6 静态数据生成器 v2")
     print("=" * 55)
 
     t0 = time.time()
@@ -125,14 +191,14 @@ def main():
 
     # 2. 为每个指数生成数据
     output = {
-        "_meta": {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "version": 1},
+        "_meta": {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "version": 2},
         "indices": {},
-        "stocks": {},       # code -> compressed daily data
-        "search_db": [],    # 搜索用：[{c, n, i}, ...]
+        "stocks": {},
+        "search_db": [],
     }
 
     print("\n[2/3] 合并指数成分股日线数据...")
-    total_stocks = 0
+    total_stocks = set()
     total_bars = 0
 
     for idx_code, idx_def in INDEX_DEFINITIONS.items():
@@ -148,12 +214,11 @@ def main():
                 compressed = compress_daily(daily)
                 if compressed:
                     idx_stocks[code] = compressed
-                    output["stocks"][code] = compressed  # 全局也存一份，供搜索个股复用
+                    output["stocks"][code] = compressed
                     total_bars += len(daily)
-                    total_stocks += 1
+                    total_stocks.add(code)
                 members.append({"ts_code": code, "name": name})
             else:
-                # 缓存中没有这只股票的数据
                 members.append({"ts_code": code, "name": name})
                 print(f"       ⚠️  {code} ({name}) 无缓存数据，跳过")
 
@@ -163,18 +228,16 @@ def main():
             "members": members,
             "available_codes": list(idx_stocks.keys()),
         }
-        print(f"       {idx_def['name']} ({idx_code}): {len(idx_stocks)}/{len(codes)} 只有数据")
+        print(f"       ✅ {idx_def['name']} ({idx_code}): {len(idx_stocks)}/{len(codes)} 只有数据")
 
-    # 3. 生成搜索数据库（只用已有数据的股票）
+    # 3. 生成搜索数据库
     print("\n[3/3] 生成搜索数据库...")
-    for code in output["stocks"]:
+    for code in sorted(output["stocks"].keys()):
         output["search_db"].append({
             "c": code,
             "n": name_map.get(code, code),
             "i": industry_map.get(code, ""),
         })
-    # 按代码排序
-    output["search_db"].sort(key=lambda x: x["c"])
 
     # 4. 写入文件
     print(f"\n写入 {OUTPUT_FILE} ...")
@@ -188,13 +251,13 @@ def main():
     print(f"\n{'=' * 55}")
     print(f"✅ 生成完成！")
     print(f"   文件大小: {size_mb:.2f} MB")
-    print(f"   股票数量: {total_stocks} 只")
+    print(f"   股票数量: {len(total_stocks)} 只")
     print(f"   K线总数:  {total_bars} 条")
     print(f"   搜索词条: {len(output['search_db'])} 条")
+    print(f"   指数覆盖: {len(output['indices'])} 个")
     print(f"   耗时:     {elapsed:.1f}s")
     print(f"{'=' * 55}")
 
-    # 也输出一个 gzip 大小估算
     import zlib
     compressed = zlib.compress(json_str.encode("utf-8"))
     print(f"   Gzip 后约: {len(compressed) / (1024*1024):.2f} MB （浏览器传输实际大小）")
