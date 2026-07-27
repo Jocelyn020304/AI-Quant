@@ -10,114 +10,96 @@ body {font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif; back
 
 .header {
     background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
-    color:#fff; padding:40px 20px; text-align:center;
+    color:#fff; padding:50px 20px; text-align:center;
 }
-.header h1 {font-size:28px; margin-bottom:4px;}
-.header p {font-size:14px; opacity:.75;}
+.header h1 {font-size:30px; margin-bottom:6px; letter-spacing:2px;}
+.header p {font-size:14px; opacity:.7; font-weight:300;}
 
 .grid {
-    max-width:1000px; margin:40px auto; padding:0 20px;
-    display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+    max-width:960px; margin:40px auto; padding:0 20px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:20px;
 }
 
 .card {
-    background:#fff; border-radius:12px; padding:24px 16px;
+    background:#fff; border-radius:14px; padding:28px 18px;
     text-align:center; text-decoration:none; color:#333;
-    box-shadow:0 2px 8px rgba(0,0,0,.06);
-    transition:transform .2s, box-shadow .2s;
-    display:flex; flex-direction:column; align-items:center; gap:8px;
+    box-shadow:0 2px 12px rgba(0,0,0,.06);
+    transition:transform .25s, box-shadow .25s;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    position:relative; overflow:hidden;
 }
-.card:hover {transform:translateY(-4px); box-shadow:0 8px 24px rgba(0,0,0,.12);}
+.card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg,#667eea,#764ba2);
+}
+.card:hover {transform:translateY(-5px); box-shadow:0 12px 32px rgba(0,0,0,.12);}
 
-.card .icon {font-size:36px;}
-.card .num {font-size:13px; font-weight:700; color:#302b63; letter-spacing:1px;}
-.card .title {font-size:15px; font-weight:600; line-height:1.4;}
-.card .desc {font-size:12px; color:#999; line-height:1.5;}
-
-.card.done {border-top:3px solid #302b63;}
-.card.future {border-top:3px solid #e0e0e0; background:#fafafa;}
-.card.future .title {color:#bbb;}
-.card.future .desc {color:#ccc;}
+.card .icon {font-size:40px; margin-bottom:4px;}
+.card .title {font-size:16px; font-weight:600; line-height:1.4; color:#1a1a2e;}
+.card .desc {font-size:12.5px; color:#888; line-height:1.6;}
 
 .footer {
-    text-align:center; padding:30px; color:#aaa; font-size:12px;
+    text-align:center; padding:40px 20px; color:#aaa; font-size:13px;
 }
+.footer a {color:#667eea; text-decoration:none; font-weight:500;}
+.footer a:hover {text-decoration:underline;}
 
 @media (max-width:768px) {
-    .grid {grid-template-columns:repeat(2,1fr);}
+    .grid {grid-template-columns:repeat(2,1fr); gap:14px;}
     .header h1 {font-size:22px;}
+    .card {padding:20px 14px;}
 }
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>📊 量化交易：AI大模型辅助的金融交易策略</h1>
-    <p>基于 Tushare Pro 的 A 股量化分析全流程</p>
+    <h1>📊 AI-Quant 智能量化分析平台</h1>
+    <p>基于 Tushare Pro 的 A 股量化分析全流程工具集</p>
 </div>
 
 <div class="grid">
 
-    <a class="card done" href="Task 1/stock_viewer.html" target="_blank">
+    <a class="card" href="Task 1/stock_viewer.html" target="_blank">
         <span class="icon">📊</span>
-        <span class="num">TASK 1</span>
-        <span class="title">基础行情数据</span>
-        <span class="desc">搜索任意股票 · K线 · 成交量 · 收盘价</span>
+        <span class="title">行情数据终端</span>
+        <span class="desc">搜索任意股票 · K线图表 · 成交量 · 收盘价走势</span>
     </a>
 
-    <a class="card done" href="Task 2/dashboard.html" target="_blank">
+    <a class="card" href="Task 2/dashboard.html" target="_blank">
         <span class="icon">🔬</span>
-        <span class="num">TASK 2</span>
-        <span class="title">数据诊断与技术指标</span>
-        <span class="desc">Tushare 接入 · 复权选择 · RSI / MACD / 布林带 / KDJ</span>
+        <span class="title">技术指标诊断</span>
+        <span class="desc">RSI · MACD · 布林带 · KDJ · 复权处理</span>
     </a>
 
-    <a class="card done" href="Task 3/dashboard.html" target="_blank">
+    <a class="card" href="Task 3/dashboard.html" target="_blank">
         <span class="icon">📉</span>
-        <span class="num">TASK 3</span>
-        <span class="title">双均线策略回测</span>
-        <span class="desc">金叉/死叉 · 多股票 · 参数优化</span>
+        <span class="title">双均线回测引擎</span>
+        <span class="desc">金叉/死叉信号 · 多股票回测 · 参数优化</span>
     </a>
 
-    <a class="card done" href="Task 4/dashboard.html" target="_blank">
+    <a class="card" href="Task 4/dashboard.html" target="_blank">
         <span class="icon">🐢</span>
-        <span class="num">TASK 4</span>
-        <span class="title">海龟交易法则</span>
-        <span class="desc">唐奇安通道 · ATR · 多品种回测</span>
+        <span class="title">海龟交易系统</span>
+        <span class="desc">唐奇安通道 · ATR 波动率 · 多品种组合回测</span>
     </a>
 
-    <a class="card done" href="Task 5/dashboard.html" target="_blank">
+    <a class="card" href="Task 5/dashboard.html" target="_blank">
         <span class="icon">🤖</span>
-        <span class="num">TASK 5</span>
-        <span class="title">机器学习算法（交互看板）</span>
-        <span class="desc">上传CSV · 自定义划分/预处理 · 多模型对比 · ROC/混淆矩阵</span>
+        <span class="title">机器学习分类器</span>
+        <span class="desc">自定义因子工程 · 多模型对比 · ROC / 混淆矩阵</span>
     </a>
 
-    <a class="card done" href="Task 6/dashboard.html" target="_blank">
+    <a class="card" href="Task 6/dashboard.html" target="_blank">
         <span class="icon">🧠</span>
-        <span class="num">TASK 6</span>
-        <span class="title">智能决策者（交互看板）</span>
-        <span class="desc">回归预测 · Top-30选股 · 季度回测 · 实时数据</span>
-    </a>
-
-    <a class="card future" href="javascript:void(0)">
-        <span class="icon">⏳</span>
-        <span class="num">TASK 7</span>
-        <span class="title">待定</span>
-        <span class="desc">即将到来</span>
-    </a>
-
-    <a class="card future" href="javascript:void(0)">
-        <span class="icon">⏳</span>
-        <span class="num">TASK 8</span>
-        <span class="title">待定</span>
-        <span class="desc">即将到来</span>
+        <span class="title">智能决策者</span>
+        <span class="desc">回归预测选股 · 季度调仓回测 · 多指数实时分析</span>
     </a>
 
 </div>
 
 <div class="footer">
-    <a href="https://github.com/Jocelyn020304/AI-Quant" target="_blank" style="color:#302b63;text-decoration:none;">
+    <a href="https://github.com/Jocelyn020304/AI-Quant" target="_blank">
         ⭐ GitHub — Jocelyn020304/AI-Quant
     </a>
 </div>
