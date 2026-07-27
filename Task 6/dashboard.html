@@ -22,6 +22,7 @@ body{font-family:"Microsoft YaHei","Segoe UI",sans-serif;background:#eef0f4;colo
 .sec{margin-bottom:18px;background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .sec-title{font-size:12px;font-weight:700;color:#555;margin-bottom:10px;display:flex;align-items:center;gap:5px}
 .idx-item{display:flex;align-items:center;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:3px;transition:background .15s}
+.idx-item.has-data{border-left:3px solid #4CAF50}
 .idx-item:hover{background:#e8eaf0}
 .idx-item.active{background:#3b82f6;color:#fff}
 .idx-item .tag{font-size:10px;padding:1px 5px;border-radius:3px;margin-left:auto}
@@ -317,19 +318,32 @@ async function init(){
   try{
     const resp=await fetch('static_data.json');
     if(resp.ok){
-      STATIC_DATA=await resp.json();
-      console.log(`[静态数据] 已加载 ${Object.keys(STATIC_DATA.stocks||{}).length} 只股票，${(STATIC_DATA.search_db||[]).length} 条搜索`);
+      const rawText=await resp.text();
+      if(rawText && rawText.startsWith('{')){
+        STATIC_DATA=JSON.parse(rawText);
+        console.log(`[静态数据] ✅ 已加载 ${Object.keys(STATIC_DATA.stocks||{}).length} 只股票，${Object.keys(STATIC_DATA.indices||{}).length} 个指数，${(STATIC_DATA.search_db||[]).length} 条搜索`);
+      }else{
+        console.warn('[静态数据] ⚠️ 返回内容不是JSON（可能文件为空或CDN缓存未刷新），长度:', rawText.length);
+      }
+    }else{
+      console.warn('[静态数据] ⚠️ HTTP', resp.status);
     }
-  }catch(e){console.warn('[静态数据] 加载失败，将尝试后端 API:',e)}
+  }catch(e){console.warn('[静态数据] ❌ 加载失败:', e.message)}
+
+  if(!STATIC_DATA){
+    console.warn('[静态数据] 未加载到数据，将仅支持本地Flask模式 (localhost:5006)');
+  }
 
   // ② 渲染指数列表
   try{
-    const html=INDEX_LIST.map(idx=>`
-      <div class="idx-item" onclick="selectIndex('${idx.code}','${idx.name}',this)">
+    const html=INDEX_LIST.map(idx=>{
+      const hasData=STATIC_DATA && STATIC_DATA.indices[idx.code];
+      return `<div class="idx-item${hasData?' has-data':''}" onclick="selectIndex('${idx.code}','${idx.name}',this)">
         <span>${idx.name}</span>
         <span class="tag ${idx.type==='宽基'?'wide':'ind'}">${idx.type}</span>
-      </div>
-    `).join('');
+        ${hasData?'':'<small style="color:#999;font-size:10px">（需后端）</small>'}
+      </div>`;
+    }).join('');
     document.getElementById('index-list').innerHTML=html;
   }catch(e){console.error('渲染指数列表失败:',e)}
 
@@ -475,10 +489,19 @@ async function selectIndex(code,name,el){
   // ★ 回退：通过后端 API 获取
   try{
     const resp=await fetch(`${API_BASE}/api/constituents?index=${code}`);
-    const data=await resp.json();
+    const text=await resp.text();
+    if(!resp.ok || text.startsWith('<')){
+      throw new Error('后端不可达（HTTP '+resp.status+'）');
+    }
+    const data=JSON.parse(text);
     if(data.error){alert(data.error);hideLoading();return}
     members=data.members||[];
-  }catch(e){alert('获取成分股失败: '+e+'（静态数据中无此指数，且后端不可达）');hideLoading();return}
+  }catch(e){
+    const availableIndices=STATIC_DATA ? Object.keys(STATIC_DATA.indices).map(k=>STATIC_DATA.indices[k].name).join('、') : '无';
+    alert(`「${name}」暂无预置数据，且无法连接数据后端。\n\n当前仅支持：${availableIndices}\n\n如需使用其他指数，请运行 python task6_backend.py 后访问 localhost:5006`);
+    hideLoading();
+    return;
+  }
 
   if(members.length===0){alert('未获取到成分股数据');hideLoading();return}
 
