@@ -19,12 +19,18 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 
 /* 控制面板 */
 .controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
-.controls .field{display:flex;flex-direction:column;gap:5px}
+.controls .field{display:flex;flex-direction:column;gap:5px;position:relative}
 .controls .field label{font-size:12px;font-weight:500;color:#4e5969;white-space:nowrap}
 .controls .field input{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s}
 .controls .field input:focus{border-color:#3370ff}
-.controls .field input.code{width:150px}
+.controls .field input.code{width:200px}
 .controls .field input.datew{width:140px}
+.controls .field .suggest-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e8eb;border-radius:4px;max-height:260px;overflow-y:auto;z-index:1000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.1);margin-top:2px}
+.controls .field .suggest-box.active{display:block}
+.controls .field .suggest-item{padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f1f3;display:flex;justify-content:space-between;align-items:center}
+.controls .field .suggest-item:hover{background:#f2f4f7}
+.controls .field .suggest-item .scode{color:#1f2329;font-weight:600;font-size:12px}
+.controls .field .suggest-item .sname{color:#4e5969}
 .controls button{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;padding:0 18px}
 .controls .btn-primary{background:#3370ff;color:#fff}
 .controls .btn-primary:hover{background:#1d5ce0}
@@ -73,8 +79,9 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 
 <div class="controls">
     <div class="field">
-        <label>股票代码</label>
-        <input class="code" id="code" value="sh600519" placeholder="sh600519">
+        <label>股票代码 / 名称</label>
+        <input class="code" id="code" value="sh600519" placeholder="输入代码或名称，如 600519 / 贵州茅台" autocomplete="off">
+        <div class="suggest-box" id="suggestBox"></div>
     </div>
     <div class="field">
         <label>开始日期</label>
@@ -121,6 +128,74 @@ function $(id){return document.getElementById(id)}
 function se(m){$('load').style.display='none';$('err').textContent=m;$('err').style.display='block'}
 function qc(c){$('code').value=c;q()}
 
+// ===== 股票搜索库（代码 ↔ 名称） =====
+const STOCK_DB = [
+  // 沪市主板
+  {c:'sh600519',n:'贵州茅台'},{c:'sh600036',n:'招商银行'},{c:'sh601318',n:'中国平安'},
+  {c:'sh601012',n:'隆基绿能'},{c:'sh600900',n:'长江电力'},{c:'sh601899',n:'紫金矿业'},
+  {c:'sh600585',n:'海螺水泥'},{c:'sh601888',n:'中国中车'},{c:'sh600016',n:'民生银行'},
+  {c:'sh601166',n:'兴业银行'},{c:'sh600000',n:'浦发银行'},{c:'sh601398',n:'工商银行'},
+  {c:'sh601288',n:'农业银行'},{c:'sh601988',n:'中国银行'},{c:'sh601668',n:'中国建筑'},
+  {c:'sh600309',n:'万华化学'},{c:'sh601088',n:'中国神华'},{c:'sh600276',n:'恒瑞医药'},
+  {c:'sh600809',n:'山西汾酒'},{c:'sh600887',n:'伊利股份'},{c:'sh600104',n:'上汽集团'},
+  {c:'sh600196',n:'复星医药'},{c:'sh603259',n:'药明康德'},{c:'sh603501',n:'韦尔股份'},
+  // 深市主板
+  {c:'sz000001',n:'平安银行'},{c:'sz000002',n:'万科A'},{c:'sz000333',n:'美的集团'},
+  {c:'sz000651',n:'格力电器'},{c:'sz000568',n:'泸州老窖'},{c:'sz000858',n:'五粮液'},
+  {c:'sz002475',n:'立讯精密'},{c:'sz002594',n:'比亚迪'},{c:'sz002230',n:'科大讯飞'},
+  {c:'sz002142',n:'宁波银行'},{c:'sz000725',n:'京东方A'},{c:'sz002304',n:'洋河股份'},
+  {c:'sz002352',n:'顺丰控股'},{c:'sz002415',n:'海康威视'},{c:'sz000100',n:'TCL科技'},
+  {c:'sz002371',n:'北方华创'},{c:'sz002129',n:'中环股份'},{c:'sz000063',n:'中兴通讯'},
+  // 创业板
+  {c:'sz300750',n:'宁德时代'},{c:'sz300059',n:'东方财富'},{c:'sz300122',n:'智飞生物'},
+  {c:'sz300274',n:'阳光电源'},{c:'sz300003',n:'乐普医疗'},{c:'sz30859',n:'金龙鱼'},
+  {c:'sz301269',n:'华大智造'},{c:'sz300760',n:'迈瑞医疗'},{c:'sz300015',n:'爱尔眼科'},
+  {c:'sz29912',n:'中芯国际'},{c:'sz300124',n:'汇川技术'},{c:'sz300142',n:'沃森生物'},
+  // 科创板
+  {c:'sh688256',n:'寒武纪'},{c:'sh688981',n:'中芯国际'},{c:'sh688111',n:'金山办公'},
+  {c:'sh688005',n:'容百科技'},{c:'sh688036',n:'传音控股'},{c:'sh688187',n:'时代电气'},
+  {c:'sh688256',n:'寒武纪'},{c:'sh688041',n:'海光信息'},{c:'sh688012',n:'中微公司'},
+  {c:'sh688303',n:'大全能源'},{c:'sh688239',n:'航宇科技'},{c:'sh688169',n:'石头科技'},
+  // 港股
+  {c:'hk00700',n:'腾讯控股'},{c:'hk09988',n:'阿里巴巴'},{c:'hk09888',n:'百度集团'},
+  {c:'hk09618',n:'京东集团'},{c:'hk09999',n:'网易'},{c:'hk03690',n:'美团'},
+  {c:'hk01810',n:'小米集团'},{c:'hk02015',n:'理想汽车'},{c:'hk09868',n:'小鹏汽车'},
+  {c:'hk09866',n:'蔚来'},{c:'hk02382',n:'舜宇光学'},{c:'hk01211',n:'比亚迪股份'}
+];
+
+const CODE_MAP = {};
+STOCK_DB.forEach(s => { CODE_MAP[s.c] = s.n; CODE_MAP[s.n] = s.c; });
+
+// ===== 搜索自动补全 =====
+let suggestTimer = null;
+$('code').addEventListener('input', function(){
+  clearTimeout(suggestTimer);
+  const q = this.value.trim().toLowerCase();
+  if(!q){hideSuggest();return}
+  suggestTimer = setTimeout(()=>{
+    const results = STOCK_DB.filter(s =>
+      s.c.toLowerCase().includes(q) || s.n.includes(q)
+    ).slice(0,10);
+    if(!results.length){hideSuggest();return}
+    const box = $('suggestBox');
+    box.innerHTML = results.map(s =>
+      '<div class="suggest-item" data-code="'+s.c+'" data-name="'+s.n+'">'+
+      '<span class="sname">'+s.n+'</span>'+
+      '<span class="scode">'+s.c+'</span></div>'
+    ).join('');
+    box.classList.add('active');
+    box.querySelectorAll('.suggest-item').forEach(item => {
+      item.addEventListener('click', function(){
+        $('code').value = this.dataset.code;
+        hideSuggest();
+        q();
+      });
+    });
+  }, 150);
+});
+$('code').addEventListener('blur', function(){ setTimeout(hideSuggest, 200) });
+function hideSuggest(){ $('suggestBox').classList.remove('active') }
+
 // 默认结束日期为今天
 $('end').valueAsDate = new Date();
 
@@ -128,8 +203,14 @@ async function q(){
     let code = $('code').value.trim();
     let startDate = $('start').value;
     let endDate = $('end').value;
-    if(!code){se('请输入股票代码');return}
+    if(!code){se('请输入股票代码或名称');return}
     if(!startDate||!endDate){se('请选择起止日期');return}
+
+    // 如果输入的是名称，自动转为代码
+    if(CODE_MAP[code]){
+      code = CODE_MAP[code];
+      $('code').value = code;
+    }
 
     $('err').style.display='none';
     $('ct').style.display='none';
