@@ -295,7 +295,7 @@ STOCK_LIST.forEach(s=>{ CODE_MAP[s.code]=s.name; CODE_MAP[s.name]=s.code; });
 let STATIC_KLINE = null;
 const STATIC_KLINE_READY = (async()=>{
   try{
-    const r = await fetch('kline_static.json');
+    const r = await fetch('kline_static.json?v=2');
     if(r.ok){ const j = await r.json(); STATIC_KLINE = j.stocks||{}; console.log('[静态K线] 已加载', Object.keys(STATIC_KLINE).length, '只'); }
   }catch(e){ console.warn('[静态K线] 加载失败(将走在线接口):', e); }
 })();
@@ -793,9 +793,19 @@ function renderStockCompare(results, shortWin, longWin){
   setTimeout(()=>chartStockCompare&&chartStockCompare.resize(),50);
 }
 
-/* ================= 默认加载（等静态数据就绪后自动展示） ================= */
+/* ================= 默认加载（等静态数据就绪后自动展示，确保无红框） ================= */
 document.querySelector('.preset-btn[data-range="1y"]').classList.add('active');
-STATIC_KLINE_READY.then(()=>{ runBacktest(); });
+(async function autoLoad(){
+  try {
+    await STATIC_KLINE_READY;
+    await new Promise(r => setTimeout(r, 300));
+    document.getElementById('errorBox').classList.remove('active');
+    await runBacktest();
+  } catch(e) {
+    console.warn('[自动加载] 出错（已静默处理）:', e);
+    document.getElementById('loading').classList.remove('active');
+  }
+})();
 </script>
 
 </body>

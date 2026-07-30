@@ -201,18 +201,37 @@ $('end').valueAsDate = new Date();
 
 // ===== 静态 K 线数据 =====
 let KLINE_DATA = null;
-let staticReady = null;
 
 async function loadStaticData(){
   try{
-    const r = await fetch('kline_static.json');
+    const r = await fetch('kline_static.json?v=2');
     if(r.ok){
       KLINE_DATA = await r.json();
       console.log('[静态K线] 已加载', Object.keys(KLINE_DATA.stocks||{}).length, '只股票');
     }
   }catch(e){console.warn('[静态K线] 加载失败:',e)}
 }
-staticReady = loadStaticData();
+
+// ★ 自动加载：等静态数据就绪 → 清除错误 → 展示默认股票
+(async function autoLoad(){
+  try {
+    // 1. 先确保输入框是代码格式（避免名称转换时序问题）
+    const raw = $('code').value.trim();
+    if(CODE_MAP && CODE_MAP[raw] && !/^\d{6}$/.test(raw)){
+      $('code').value = CODE_MAP[raw];
+    }
+    // 2. 等静态数据加载完成
+    await loadStaticData();
+    // 3. 额外等待确保 DOM 稳定
+    await new Promise(r => setTimeout(r, 300));
+    // 4. 清除可能残留的错误提示，然后加载
+    $('err').style.display='none';
+    await q();
+  } catch(e) {
+    console.warn('[自动加载] 出错（已静默处理）:', e);
+    $('load').style.display='none';
+  }
+})();
 
 async function q(){
     let code = $('code').value.trim();
@@ -351,8 +370,7 @@ function render(raw, code){
     });
 }
 
-// ★ 等静态数据加载完毕后自动展示默认股票
-staticReady.then(()=>{ q(); });
+// ★ autoLoad() 已在脚本顶部定义并自动执行，此处无需重复调用
 </script>
 </body>
 </html>
