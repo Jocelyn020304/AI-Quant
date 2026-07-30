@@ -1071,9 +1071,9 @@ window.addEventListener('resize',()=>{
   chartKDJ&&chartKDJ.resize();
 });
 
-/* ================= 默认加载 ================= */
+/* ================= 默认加载（等静态数据就绪后自动展示） ================= */
 document.querySelector('.preset-btn[data-range="1y"]').classList.add('active');
-runAnalysis();
+STATIC_KLINE_READY.then(()=>{ runAnalysis(); });
 </script>
 
 </body>

@@ -201,6 +201,7 @@ $('end').valueAsDate = new Date();
 
 // ===== 静态 K 线数据 =====
 let KLINE_DATA = null;
+let staticReady = null;
 
 async function loadStaticData(){
   try{
@@ -211,7 +212,7 @@ async function loadStaticData(){
     }
   }catch(e){console.warn('[静态K线] 加载失败:',e)}
 }
-loadStaticData();
+staticReady = loadStaticData();
 
 async function q(){
     let code = $('code').value.trim();
@@ -350,8 +351,8 @@ function render(raw, code){
     });
 }
 
-// 默认加载
-q();
+// ★ 等静态数据加载完毕后自动展示默认股票
+staticReady.then(()=>{ q(); });
 </script>
 </body>
 </html>

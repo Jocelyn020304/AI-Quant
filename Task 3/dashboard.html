@@ -793,9 +793,9 @@ function renderStockCompare(results, shortWin, longWin){
   setTimeout(()=>chartStockCompare&&chartStockCompare.resize(),50);
 }
 
-/* ================= 默认加载 ================= */
+/* ================= 默认加载（等静态数据就绪后自动展示） ================= */
 document.querySelector('.preset-btn[data-range="1y"]').classList.add('active');
-runBacktest();
+STATIC_KLINE_READY.then(()=>{ runBacktest(); });
 </script>
 
 </body>
