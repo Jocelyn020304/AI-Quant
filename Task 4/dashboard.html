@@ -595,10 +595,6 @@ async function runBacktest(){
     const rows = await fetchKline(code, currentRange, adj);
     gCachedData = {code, rows:rows.slice(), adj, period, atrPeriod, stopAtr, riskFree, riskRatio};
 
-    document.getElementById('headerCode').textContent = code + (code.startsWith('6')||code.startsWith('9')?'.SH':'.SZ');
-    document.getElementById('headerName').textContent = getStockName(code);
-    document.getElementById('headerDate').textContent = `${rows[0].date} ~ ${rows[rows.length-1].date} (${rows.length}日)`;
-
     const bt = backtestTurtle(rows, period, atrPeriod, stopAtr, riskRatio, riskFree);
     renderBacktest(code, rows, bt, period, atrPeriod, stopAtr);
     document.getElementById('content').style.display = 'block';

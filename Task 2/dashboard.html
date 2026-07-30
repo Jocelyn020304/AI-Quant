@@ -732,9 +732,6 @@ async function runAnalysis(){
     gCachedData = {code, rows:rows.slice(), adj, rsiPeriod, macdFast, macdSlow, macdSignal, bbPeriod, bbK, kdjN};
 
     const codeText = code + (code.startsWith('6')||code.startsWith('9')?'.SH':'.SZ');
-    document.getElementById('headerCode').textContent = codeText;
-    document.getElementById('headerName').textContent = getStockName(code);
-    document.getElementById('headerDate').textContent = `${rows[0].date} ~ ${rows[rows.length-1].date} (${rows.length}日)`;
 
     renderAll(gCachedData);
     document.getElementById('content').style.display = 'block';
