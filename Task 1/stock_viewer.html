@@ -83,7 +83,7 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 <div class="controls">
     <div class="field">
         <label>股票代码 / 名称</label>
-        <input class="code" id="code" value="sh600519" placeholder="输入代码或名称，如 600519 / 贵州茅台" autocomplete="off">
+        <input class="code" id="code" value="贵州茅台 sh600519" placeholder="输入代码或名称，如 600519 / 贵州茅台" autocomplete="off">
         <div class="suggest-box" id="suggestBox"></div>
     </div>
     <div class="field">
@@ -141,11 +141,8 @@ function extCode(raw){
   if(!s) return '';
   // 已是代码格式 (sh/sz/hk/bj + 数字)
   if(/^(sh|sz|hk|bj)\d{4,}$/.test(s)) return s;
-  // 纯6位数字 → 补前缀（用 CODE_MAP 反查）
-  if(/^\d{6}$/.test(s)){
-    const full = CODE_MAP[s]; // 名称→代码
-    if(full) return full;
-    // 猜前缀
+  // 纯6位数字 → 按首位补前缀（CODE_MAP[s]存的是名称，不能当代码用）
+  if(/^\d{6}$/i.test(s)){
     if(s[0]==='6') return 'sh'+s;
     if(s[0]==='0'||s[0]==='3') return 'sz'+s;
     if(s[0]==='4' || s[0]==='8') return 'bj'+s;
@@ -158,8 +155,7 @@ function extCode(raw){
   const last = parts[parts.length-1];
   if(/^(sh|sz|hk|bj)\d{4,}$/.test(last)) return last;
   if(/^\d{6}$/.test(last)){
-    const full = CODE_MAP[last] || CODE_MAP[s];
-    if(full) return full;
+    // ★ 纯6位数字：直接按首位加前缀（CODE_MAP存的是名称）
     if(last[0]==='6') return 'sh'+last;
     if(last[0]==='0'||last[0]==='3') return 'sz'+last;
     return 'sh'+last;
