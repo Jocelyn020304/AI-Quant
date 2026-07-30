@@ -1,0 +1,76 @@
+name: 每日刷新静态K线数据
+
+on:
+  # 每个交易日北京时间 16:30（=UTC 08:30）自动刷新
+  schedule:
+    - cron: '30 8 * * 1-5'
+  # 允许在 Actions 页面手动触发，方便随时测试/补刷
+  workflow_dispatch:
+
+# 防止重叠运行
+concurrency:
+  group: refresh-kline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 配置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: 运行数据生成脚本
+        run: python "Task 1/gen_kline_static.py"
+
+      - name: 更新看板缓存版本号(强制浏览器刷新)
+        run: |
+          python - <<'PY'
+          import re, os, datetime
+          today = datetime.date.today().strftime('%Y%m%d')
+          files = [
+              'Task 1/stock_viewer.html',
+              'Task 2/dashboard.html',
+              'Task 3/dashboard.html',
+              'Task 4/dashboard.html',
+          ]
+          pat = re.compile(r'kline_static\.json\?v=\d+')
+          for f in files:
+              if not os.path.exists(f):
+                  continue
+              s = open(f, encoding='utf-8').read()
+              s2 = pat.sub(f'kline_static.json?v={today}', s)
+              if s2 != s:
+                  open(f, 'w', encoding='utf-8').write(s2)
+                  print('bumped cache version ->', f)
+          PY
+
+      - name: 提交并推送(若有变更)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            "Task 1/kline_static.json" \
+            "Task 2/kline_static.json" \
+            "Task 3/kline_static.json" \
+            "Task 4/kline_static.json" \
+            "Task 1/stock_viewer.html" \
+            "Task 2/dashboard.html" \
+            "Task 3/dashboard.html" \
+            "Task 4/dashboard.html"
+          if git diff --staged --quiet; then
+            echo "数据无变化，跳过提交"
+          else
+            git commit -m "chore: 自动刷新静态K线数据 $(date +%Y-%m-%d)"
+            git push
+            echo "已推送更新"
+          fi
