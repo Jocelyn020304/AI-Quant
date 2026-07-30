@@ -20,10 +20,11 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 
 .container{max-width:1400px;margin:0 auto;padding:16px 20px}
 
-.controls{background:#fff;border:1px solid #e6e8eb;border-radius:6px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:end}
-.controls .field{display:flex;flex-direction:column;gap:5px;position:relative}
-.controls .field label{font-size:12px;font-weight:500;color:#4e5969}
-.controls .field input,.controls .field select{padding:7px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:32px;transition:border-color .15s;width:100%}
+.controls{background:#fff;border:1px solid #e6e8eb;border-radius:8px;padding:18px 20px;margin-bottom:14px;display:grid;grid-template-columns:repeat(12,1fr);gap:16px 18px;align-items:end}
+.controls .field{display:flex;flex-direction:column;gap:6px;position:relative}
+.controls .field label{font-size:12px;font-weight:500;color:#4e5969;white-space:nowrap;line-height:1.3}
+.controls .field input,.controls .field select{padding:8px 10px;border:1px solid #c9cdd4;border-radius:4px;font-size:13px;outline:none;background:#fff;height:36px;transition:border-color .15s;width:100%;min-width:0}
+.controls .field input[type="number"]{min-width:48px;text-align:center}
 .controls .field input:focus,.controls .field select:focus{border-color:#3370ff}
 .controls .field.col-3{grid-column:span 3}
 .controls .field.col-2{grid-column:span 2}
@@ -122,9 +123,11 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
 .compare-controls .btn-primary{height:32px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;background:#3370ff;color:#fff;padding:0 16px}
 .compare-controls .btn-primary:hover{background:#1d5ce0}
 
-@media (max-width:900px){
-  .controls{grid-template-columns:repeat(6,1fr)}
-  .controls .field.col-2,.controls .field.col-3,.controls .field.col-1{grid-column:span 6}
+@media (max-width:1000px){
+  .controls{grid-template-columns:repeat(6,1fr);gap:12px}
+  .controls .field.col-3{grid-column:span 3}
+  .controls .field.col-2{grid-column:span 2}
+  .controls .field.col-1{grid-column:span 2}
   .stats{grid-template-columns:repeat(4,1fr)}
   .diagnosis-grid{grid-template-columns:repeat(2,1fr)}
 }
@@ -153,7 +156,7 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
                 <option value="hfq">后复权</option>
             </select>
         </div>
-        <div class="field col-2">
+        <div class="field col-3">
             <label>数据范围</label>
             <div class="preset-group">
                 <button type="button" class="preset-btn" data-range="3m">近3月</button>
@@ -167,28 +170,27 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
             <label>RSI周期</label>
             <input type="number" id="rsiPeriod" value="14" min="2" max="100">
         </div>
-        <div class="field col-2">
+        <div class="field col-3">
             <label>MACD 快/慢/信号</label>
-            <div style="display:flex;gap:4px">
+            <div style="display:flex;gap:6px">
                 <input type="number" id="macdFast" value="12" min="2" max="100" title="快线">
                 <input type="number" id="macdSlow" value="26" min="2" max="200" title="慢线">
                 <input type="number" id="macdSignal" value="9" min="2" max="100" title="信号">
             </div>
         </div>
-        <div class="field col-1">
-            <label>布林带</label>
-            <div style="display:flex;gap:4px">
+        <div class="field col-3">
+            <label>布林带 周期 / 倍数</label>
+            <div style="display:flex;gap:6px">
                 <input type="number" id="bbPeriod" value="20" min="2" max="200" title="周期">
                 <input type="number" id="bbK" value="2" step="0.1" min="0.5" max="5" title="倍数">
             </div>
         </div>
-        <div class="field col-1">
+        <div class="field col-2">
             <label>KDJ N</label>
             <input type="number" id="kdjN" value="9" min="2" max="100">
         </div>
-        <div class="field col-1">
-            <label>&nbsp;</label>
-            <button class="btn-primary" onclick="runAnalysis();return false" style="width:100%;">查询</button>
+        <div class="field col-2">
+            <button class="btn-primary" onclick="runAnalysis();return false" style="width:100%;height:36px;font-size:14px;">查询</button>
         </div>
     </div>
 
