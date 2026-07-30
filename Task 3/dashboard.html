@@ -335,7 +335,7 @@ const STATIC_KLINE_READY = (async()=>{
 function staticRows(front, range){
   const arr = STATIC_KLINE && STATIC_KLINE[front];
   if(!arr || !arr.length) return null;
-  let rows = arr.map(k=>({date:k[0],open:k[1],close:k[2],high:k[3],low:k[4],vol:k[5]}));
+  let rows = arr.map(k=>({date:k[0].replace(/(\d{4})(\d{2})(\d{2})/,'$1-$2-$3'),open:k[1],close:k[2],high:k[3],low:k[4],vol:k[5]}));
   if(range && range!=='all'){
     const end = new Date(rows[rows.length-1].date);
     const start = new Date(end);
