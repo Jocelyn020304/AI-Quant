@@ -356,6 +356,34 @@ const STOCK_LIST = [
   {code:'688271',name:'联影医疗',market:'沪A'},{code:'688981',name:'中芯国际',market:'沪A'},
 ];
 
+/* ================= 名称 ↔ 代码 映射 + 共享静态数据 ================= */
+const CODE_MAP = {};
+STOCK_LIST.forEach(s=>{ CODE_MAP[s.code]=s.name; CODE_MAP[s.name]=s.code; });
+
+let STATIC_KLINE = null;
+const STATIC_KLINE_READY = (async()=>{
+  try{
+    const r = await fetch('kline_static.json');
+    if(r.ok){ const j = await r.json(); STATIC_KLINE = j.stocks||{}; console.log('[静态K线] 已加载', Object.keys(STATIC_KLINE).length, '只'); }
+  }catch(e){ console.warn('[静态K线] 加载失败(将走在线接口):', e); }
+})();
+
+function staticRows(front, range){
+  const arr = STATIC_KLINE && STATIC_KLINE[front];
+  if(!arr || !arr.length) return null;
+  let rows = arr.map(k=>({date:k[0],open:k[1],close:k[2],high:k[3],low:k[4],vol:k[5]}));
+  if(range && range!=='all'){
+    const end = new Date(rows[rows.length-1].date);
+    const start = new Date(end);
+    if(range==='3m') start.setMonth(start.getMonth()-3);
+    else if(range==='6m') start.setMonth(start.getMonth()-6);
+    else if(range==='1y') start.setFullYear(start.getFullYear()-1);
+    else if(range==='2y') start.setFullYear(start.getFullYear()-2);
+    rows = rows.filter(r=>r.date>=start.toISOString().substring(0,10));
+  }
+  return rows.length ? rows : null;
+}
+
 /* ================= 工具函数 ================= */
 const fmtP = v => v === null || v === undefined ? '-' : '¥' + Number(v).toFixed(2);
 const fmtPct = v => (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
@@ -442,9 +470,14 @@ function showError(msg){
 function hideError(){document.getElementById('errorBox').classList.remove('active')}
 
 /* ================= 获取 K 线数据（腾讯 API） ================= */
-async function fetchKline(code, range, adj){
+async function fetchKline(rawCode, range, adj){
+  let code = rawCode;
+  if(!/^\d{6}$/.test(code) && CODE_MAP[code]) code = CODE_MAP[code];  // 名称 → 代码
+  await STATIC_KLINE_READY;
   const tc = toTencentCode(code);
   if(!tc) throw new Error('无效股票代码: '+code);
+  const sr = staticRows(tc, range);   // ★ 优先本地静态数据（离线可用，无需联网）
+  if(sr) return sr;
   const adjParam = adj==='qfq' ? 'qfq' : (adj==='hfq' ? 'hfq' : '');
   const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${tc},day,,,640,${adjParam}`;
   const resp = await fetch(url);
@@ -713,9 +746,10 @@ async function runAnalysis(){
   document.getElementById('content').style.display = 'none';
   document.getElementById('loading').classList.add('active');
 
-  const raw = document.getElementById('stockInput').value.trim();
+  let raw = document.getElementById('stockInput').value.trim();
+  if(CODE_MAP[raw]) raw = CODE_MAP[raw];   // 支持输入名称
   const m = raw.match(/(\d{6})/);
-  if(!m){showError('请输入有效的6位股票代码');document.getElementById('loading').classList.remove('active');return}
+  if(!m){showError('请输入有效的6位股票代码或名称');document.getElementById('loading').classList.remove('active');return}
   const code = m[1];
   const adj = document.getElementById('adjType').value;
   const rsiPeriod = parseInt(document.getElementById('rsiPeriod').value)||14;
