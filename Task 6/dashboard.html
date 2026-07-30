@@ -403,11 +403,11 @@ async function checkBackend(){
 function bindModelCheckboxes(){
   document.querySelectorAll('.model-chk').forEach(label=>{
     label.addEventListener('click',function(e){
-      if(e.target.tagName!=='INPUT') {
-        const cb=this.querySelector('input');
-        cb.checked=!cb.checked;
-      }
-      this.classList.toggle('checked',this.querySelector('input').checked);
+      // 阻止浏览器原生的 label→checkbox toggle（避免双重切换导致"点了没反应"）
+      e.preventDefault();
+      const cb=this.querySelector('input');
+      cb.checked=!cb.checked;
+      this.classList.toggle('checked',cb.checked);
     });
   });
 }
@@ -431,14 +431,13 @@ function renderFactorCheckboxes(){
   }
   document.getElementById('factor-checkboxes').innerHTML=html;
 
-  // 绑定因子 checkbox 样式切换
+  // 绑定因子 checkbox 样式切换（同样阻止原生 toggle 避免双重切换）
   document.querySelectorAll('.fac-chk-label').forEach(label=>{
     label.addEventListener('click',function(e){
-      if(e.target.tagName!=='INPUT'){
-        const cb=this.querySelector('input');
-        cb.checked=!cb.checked;
-      }
-      this.classList.toggle('checked',this.querySelector('input').checked);
+      e.preventDefault();
+      const cb=this.querySelector('input');
+      cb.checked=!cb.checked;
+      this.classList.toggle('checked',cb.checked);
     });
   });
 }
