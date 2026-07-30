@@ -303,6 +303,37 @@ const STOCK_LIST = [
 const CODE_MAP = {};
 STOCK_LIST.forEach(s=>{ CODE_MAP[s.code]=s.name; CODE_MAP[s.name]=s.code; });
 
+// ★ 显示格式：名称 代码
+function fmtDisp(code){
+  const name = CODE_MAP[code] || '';
+  return name ? name+' '+code : code;
+}
+// ★ 从输入提取纯代码（兼容：纯代码/纯名称/"名称 code"/6位数字）
+function extCode(raw){
+  const s = raw.trim();
+  if(!s) return '';
+  if(/^(sh|sz|hk|bj)\d{4,}$/.test(s)) return s;
+  if(/^\d{6}$/.test(s)){
+    const full = CODE_MAP[s];
+    if(full) return full;
+    if(s[0]==='6') return 'sh'+s;
+    if(s[0]==='0'||s[0]==='3') return 'sz'+s;
+    return 'sh'+s;
+  }
+  if(CODE_MAP[s]) return CODE_MAP[s];
+  const parts = s.split(/\s+/);
+  const last = parts[parts.length-1];
+  if(/^(sh|sz|hk|bj)\d{4,}$/.test(last)) return last;
+  if(/^\d{6}$/.test(last)){
+    const full = CODE_MAP[last] || CODE_MAP[s];
+    if(full) return full;
+    if(last[0]==='6') return 'sh'+last;
+    if(last[0]==='0'||last[0]==='3') return 'sz'+last;
+    return 'sh'+last;
+  }
+  return s;
+}
+
 let STATIC_KLINE = null;
 const STATIC_KLINE_READY = (async()=>{
   try{
@@ -380,7 +411,7 @@ function doSearch(keyword){
 }
 
 function selectStock(code){
-  document.getElementById('stockInput').value = code;
+  document.getElementById('stockInput').value = fmtDisp(code);
   document.getElementById('suggestBox').classList.remove('active');
   runBacktest();
 }
@@ -613,8 +644,9 @@ async function runBacktest(){
   document.getElementById('loading').classList.add('active');
 
   let raw = document.getElementById('stockInput').value.trim();
-  if(CODE_MAP[raw]) raw = CODE_MAP[raw];   // 支持输入名称
-  const m = raw.match(/(\d{6})/);
+  // ★ 用 extCode 提取纯代码（兼容名称/"名称 code"/纯代码）
+  const fullCode = extCode(raw);
+  const m = fullCode.match(/(\d{6})/);
   if(!m){showError('请输入有效的6位股票代码或名称');document.getElementById('loading').classList.remove('active');return}
   const code = m[1];
   const period = parseInt(document.getElementById('period').value)||20;
@@ -636,6 +668,8 @@ async function runBacktest(){
 
     const bt = backtestTurtle(rows, period, atrPeriod, stopAtr, riskRatio, riskFree);
     renderBacktest(code, rows, bt, period, atrPeriod, stopAtr);
+    // ★ 成功后更新输入框为「名称 代码」格式
+    document.getElementById('stockInput').value = fmtDisp(fullCode);
     document.getElementById('content').style.display = 'block';
   }catch(e){showError(e.message||'请求失败')}
   document.getElementById('loading').classList.remove('active');
