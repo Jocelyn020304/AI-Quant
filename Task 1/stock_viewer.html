@@ -85,7 +85,7 @@ body{font-family:-apple-system,'Microsoft YaHei','PingFang SC',sans-serif;backgr
     </div>
     <div class="field">
         <label>开始日期</label>
-        <input class="datew" id="start" type="date" value="2025-07-01">
+        <input class="datew" id="start" type="date" value="2024-01-01">
     </div>
     <div class="field">
         <label>结束日期</label>
@@ -237,7 +237,12 @@ async function q(){
         // 按日期范围过滤
         const startStr = startDate.replace(/-/g,'');
         const endStr = endDate.replace(/-/g,'');
-        const filtered = allKlines.filter(k => k[0] >= startStr && k[0] <= endStr);
+        let filtered = allKlines.filter(k => k[0] >= startStr && k[0] <= endStr);
+        // ★ 降级：如果范围为空（如选了超出数据范围的日期），返回最近全部可用数据
+        if(!filtered.length && allKlines.length){
+          console.warn(`[Task1] ${code} 日期范围${startDate}~${endDate}无数据，显示全部${allKlines.length}条`);
+          filtered = allKlines;
+        }
         if(filtered.length > 0){
           render(filtered, code);
           $('load').style.display='none';
