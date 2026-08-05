@@ -327,7 +327,7 @@ function extCode(raw){
 let STATIC_KLINE = null;
 const STATIC_KLINE_READY = (async()=>{
   try{
-    const r = await fetch('kline_static.json?v=20260804');
+    const r = await fetch('kline_static.json?v=20260805');
     if(r.ok){ const j = await r.json(); STATIC_KLINE = j.stocks||{}; console.log('[静态K线] 已加载', Object.keys(STATIC_KLINE).length, '只'); }
   }catch(e){ console.warn('[静态K线] 加载失败(将走在线接口):', e); }
 })();
