@@ -246,7 +246,7 @@ let KLINE_DATA = null;
 
 async function loadStaticData(){
   try{
-    const r = await fetch('kline_static.json?v=20260805');
+    const r = await fetch('kline_static.json?v=20260806');
     if(r.ok){
       KLINE_DATA = await r.json();
       console.log('[静态K线] 已加载', Object.keys(KLINE_DATA.stocks||{}).length, '只股票');
